@@ -42,16 +42,16 @@
     "imagen",
     "llm-tools"
   ],
-  "author": "Your Name <your.email@example.com>",
+  "author": "Your Name <ben@benratcliffe.co.uk>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yourusername/segmind-mcp.git"
+    "url": "git+https://github.com/bratcliffe909/segmind-mcp.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/segmind-mcp/issues"
+    "url": "https://github.com/bratcliffe909/segmind-mcp/issues"
   },
-  "homepage": "https://github.com/yourusername/segmind-mcp#readme",
+  "homepage": "https://github.com/bratcliffe909/segmind-mcp#readme",
   "engines": {
     "node": ">=18.0.0"
   },
