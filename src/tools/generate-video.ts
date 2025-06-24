@@ -1,8 +1,11 @@
-import { z } from 'zod';
 import { CallToolResult, TextContent } from '@modelcontextprotocol/sdk/types.js';
-import { BaseTool } from './base.js';
+import { z } from 'zod';
+
+
 import { modelRegistry, ModelCategory } from '../models/registry.js';
 import { logger } from '../utils/logger.js';
+
+import { BaseTool } from './base.js';
 
 const GenerateVideoSchema = z.object({
   prompt: z.string().min(1).max(2000).describe('Text prompt or motion description for video generation'),

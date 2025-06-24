@@ -1,6 +1,6 @@
 import { CallToolResult, TextContent, ImageContent } from '@modelcontextprotocol/sdk/types.js';
+
 import { apiClient } from '../api/client.js';
-import { logger } from '../utils/logger.js';
 import { ModelConfig, ModelCategory } from '../models/registry.js';
 import { 
   NetworkError, 
@@ -8,6 +8,7 @@ import {
   InsufficientCreditsError,
   mapToSafeError 
 } from '../utils/errors.js';
+import { logger } from '../utils/logger.js';
 
 export interface ToolContext {
   requestId: string;

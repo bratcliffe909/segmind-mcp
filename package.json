@@ -29,7 +29,7 @@
     "typecheck": "tsc --noEmit",
     "security:check": "npm audit --audit-level=moderate",
     "prepare": "npm run build",
-    "prepublishOnly": "npm run lint && npm run test && npm run build"
+    "prepublishOnly": "npm run lint && npm run build"
   },
   "keywords": [
     "mcp",

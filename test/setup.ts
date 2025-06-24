@@ -7,6 +7,11 @@ dotenv.config({ path: '.env.test' });
 // Set test environment
 process.env.NODE_ENV = 'test';
 
+// Ensure a valid mock API key is set for tests
+if (!process.env.SEGMIND_API_KEY || !process.env.SEGMIND_API_KEY.match(/^(sg_|SG_)[a-zA-Z0-9]{12,}$/)) {
+  process.env.SEGMIND_API_KEY = 'sg_mocktestapi12345678';
+}
+
 // Mock winston to avoid log output during tests
 jest.mock('winston', () => {
   const mockFormat = (fn?: any) => {

@@ -1,7 +1,9 @@
 import { z } from 'zod';
+
 import { logger } from '../utils/logger.js';
-import { WORKING_MODELS } from './working-models.js';
+
 import { ModelCategory, ModelConfig, OutputType } from './types.js';
+import { WORKING_MODELS } from './working-models.js';
 
 // Re-export types for backward compatibility
 export { ModelCategory, OutputType, ModelConfig };

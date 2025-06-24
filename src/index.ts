@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 import { server } from './server.js';
-import { logger } from './utils/logger.js';
-import { ConfigurationError } from './utils/errors.js';
 import { config } from './utils/config.js';
+import { ConfigurationError } from './utils/errors.js';
+import { logger } from './utils/logger.js';
 
 /**
  * Test API configuration

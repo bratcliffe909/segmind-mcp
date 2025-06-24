@@ -75,7 +75,7 @@ class ConfigurationLoader {
         
         // Performance Settings
         cache: {
-          enabled: process.env.CACHE_ENABLED === 'true',
+          enabled: process.env.CACHE_ENABLED !== undefined ? process.env.CACHE_ENABLED === 'true' : undefined,
           ttl: process.env.CACHE_TTL ? parseInt(process.env.CACHE_TTL, 10) : undefined,
           maxSize: process.env.CACHE_MAX_SIZE ? parseInt(process.env.CACHE_MAX_SIZE, 10) : undefined,
         },
@@ -128,6 +128,6 @@ class ConfigurationLoader {
 
 // Export singleton configuration
 export const config = ConfigurationLoader.load();
-export const getMaskedApiKey = ConfigurationLoader.getMaskedApiKey;
-export const resetConfig = ConfigurationLoader.reset;
+export const getMaskedApiKey = (apiKey: string) => ConfigurationLoader.getMaskedApiKey(apiKey);
+export const resetConfig = () => ConfigurationLoader.reset();
 export { ConfigurationLoader };

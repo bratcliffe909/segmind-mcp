@@ -1,5 +1,5 @@
+import type { SegmindApiResponse } from '../types/index.js';
 import { config } from '../utils/config.js';
-import { logger } from '../utils/logger.js';
 import {
   NetworkError,
   TimeoutError,
@@ -8,7 +8,7 @@ import {
   InsufficientCreditsError,
   mapToSafeError,
 } from '../utils/errors.js';
-import type { SegmindApiResponse } from '../types/index.js';
+import { logger } from '../utils/logger.js';
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';

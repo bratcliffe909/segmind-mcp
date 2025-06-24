@@ -33,6 +33,7 @@ module.exports = {
       useESM: true,
     },
   },
+  setupFiles: ['<rootDir>/test/setupEnv.ts'],
   setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
   testTimeout: 10000,
   verbose: true,

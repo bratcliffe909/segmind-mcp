@@ -9,10 +9,8 @@ import {
   GetPromptRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
-import { config, getMaskedApiKey } from './utils/config.js';
-import { logger } from './utils/logger.js';
-import { mapToSafeError, formatErrorResponse } from './utils/errors.js';
-import type { ServerState } from './types/index.js';
+import { apiClient } from './api/client.js';
+import { modelRegistry, ModelCategory } from './models/registry.js';
 import { 
   generateImageTool,
   transformImageTool,
@@ -20,8 +18,10 @@ import {
   enhanceImageTool,
   specializedGenerationTool
 } from './tools/index.js';
-import { modelRegistry, ModelCategory } from './models/registry.js';
-import { apiClient } from './api/client.js';
+import type { ServerState } from './types/index.js';
+import { config, getMaskedApiKey } from './utils/config.js';
+import { mapToSafeError, formatErrorResponse } from './utils/errors.js';
+import { logger } from './utils/logger.js';
 
 export class SegmindMCPServer {
   private server: Server;
