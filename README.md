@@ -1,0 +1,274 @@
+# Segmind MCP Server
+
+Model Context Protocol server for Segmind's AI image and video generation API. Access 30+ state-of-the-art AI models including FLUX, Stable Diffusion XL, and more directly from any MCP-compatible AI assistant.
+
+## Quick Start
+
+### 1. Get your Segmind API key
+Sign up at [segmind.com](https://segmind.com) to get your API key.
+
+### 2. Configure your MCP client
+
+Add to your MCP client's configuration file. For example:
+- **Claude Desktop** (macOS): `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Claude Desktop** (Windows): `%APPDATA%\Claude\claude_desktop_config.json`
+- **Other MCP clients**: Check your client's documentation for config location
+
+```json
+{
+  "mcpServers": {
+    "segmind": {
+      "command": "npx",
+      "args": ["segmind-mcp"],
+      "env": {
+        "SEGMIND_API_KEY": "your_segmind_api_key_here"
+      }
+    }
+  }
+}
+```
+
+### 3. Restart your MCP client
+
+That's it! The server will automatically download and run when needed. No installation or setup required!
+
+### Alternative: Install Globally
+
+If you prefer to install the package globally:
+
+```bash
+npm install -g segmind-mcp
+```
+
+Then use this simpler configuration:
+```json
+{
+  "mcpServers": {
+    "segmind": {
+      "command": "segmind-mcp",
+      "env": {
+        "SEGMIND_API_KEY": "your_segmind_api_key_here"
+      }
+    }
+  }
+}
+```
+
+## Available Tools
+
+### 🎨 generate_image
+Create images from text descriptions using various AI models.
+
+**Basic Examples:**
+```
+"Generate an image of a futuristic city at sunset"
+"Create a portrait of a robot in Renaissance style"
+"Make an image of a cozy coffee shop interior"
+```
+
+**Advanced Examples with Options:**
+```
+"Generate a high-quality landscape photo of mountains using flux-1-pro"
+"Create 3 variations of a cute cat logo with seed 12345"
+"Make a 16:9 widescreen image of a space station"
+```
+
+**Available Options:**
+- `model`: Choose specific model (sdxl, flux-1-pro, ideogram-3, gpt-image-1, seedream-v3)
+- `width/height`: Image dimensions (256-2048, must be multiples of 8)
+- `num_images`: Generate 1-4 variations
+- `quality`: draft, standard, or high
+- `style`: Add style modifiers (e.g., "photorealistic", "anime", "oil painting")
+- `seed`: Use specific seed for reproducible results
+
+### 🔄 transform_image  
+Transform existing images using AI models.
+
+**Basic Examples:**
+```
+"Transform this image into a watercolor painting"
+"Change the style to cyberpunk"
+"Make it look like a sketch"
+```
+
+**Advanced Examples:**
+```
+"Apply subtle oil painting style with strength 0.5"
+"Transform to anime style using sd15-img2img"
+"Add dramatic lighting and shadows with high strength"
+```
+
+**Available Options:**
+- `model`: sd15-img2img (default)
+- `strength`: 0.0-1.0 (how much to transform, default 0.75)
+- `negative_prompt`: What to avoid in transformation
+- `seed`: For reproducible transformations
+
+### 🎬 generate_video
+Create videos from text descriptions or animate static images.
+
+**Basic Examples:**
+```
+"Create a 5-second video of a butterfly emerging from a cocoon"
+"Generate a video of waves crashing on a beach"
+"Make a video of futuristic cityscape at night"
+```
+
+**Advanced Examples:**
+```
+"Create a 10-second cinematic video using veo-3 model"
+"Generate multi-shot video with seedance-v1-lite"
+"Animate this landscape photo with gentle movement"
+```
+
+**Available Options:**
+- `model`: veo-3, seedance-v1-lite
+- `duration`: 5-10 seconds
+- `aspect_ratio`: 16:9, 9:16, 1:1, 4:3
+- `quality`: standard, high, ultra
+- `seed`: For reproducible videos
+
+### ✨ enhance_image
+Improve image quality and resolution.
+
+**Basic Examples:**
+```
+"Upscale this image to 4K"
+"Remove noise from this photo"
+"Enhance and sharpen this old photograph"
+```
+
+**Advanced Examples:**
+```
+"Upscale by 4x using esrgan model"
+"Enhance face details using codeformer"
+"Upscale image with face enhancement enabled"
+"Restore old portrait with codeformer"
+```
+
+**Available Options:**
+- `enhancement_type`: upscale, denoise
+- `model`: esrgan (for upscaling) or codeformer (for face enhancement)
+- `scale`: 2x or 4x (for upscaling with esrgan)
+- `strength`: 0.0-1.0 (enhancement intensity)
+- `face_enhance`: true/false (for esrgan)
+
+### 🎯 specialized_generation
+Generate specialized content like speech, music, QR codes, and stickers.
+
+**Text-to-Speech Examples:**
+```
+"Convert this text to speech: Hello world"
+"Create dialogue: [S1] Hello! [S2] Hi there! <laugh>"
+"Generate speech with emotion tags using orpheus-tts"
+```
+
+**Music Generation Examples:**
+```
+"Create relaxing piano music for meditation"
+"Generate upbeat electronic music"
+"Make 60 seconds of music with vocals using minimax-music"
+```
+
+**Available Options:**
+- `type`: tts, music, qr_code, sticker, avatar, outfit, logo
+- `model`: dia-tts, orpheus-tts, lyria-2, minimax-music
+- Speech options: emotions, multiple speakers, speed
+- Music options: duration, style, instrumental or with vocals
+
+## Supported Models
+
+The server includes 13 verified working models:
+
+### Text-to-Image Generation (4 models)
+- **sdxl** - Stable Diffusion XL: High-quality image generation with SDXL 1.0
+- **sdxl-lightning** - SDXL Lightning: Fast high-quality image generation (8 steps)
+- **fooocus** - Fooocus: Advanced image generation with refinement options
+- **ssd-1b** - SSD-1B: Efficient billion-parameter model for fast generation
+
+### Image-to-Image Transformation (1 model)
+- **sd15-img2img** - SD 1.5 Image-to-Image: Transform existing images with Stable Diffusion 1.5
+
+### Image Enhancement (2 models)
+- **esrgan** - ESRGAN: AI-powered image upscaling (2x-4x) and enhancement
+- **codeformer** - CodeFormer: AI face restoration and enhancement
+
+### Video Generation (2 models)
+- **veo-3** - Google Veo 3: Advanced text-to-video with realistic audio synthesis
+- **seedance-v1-lite** - Seedance V1 Lite: Fast high-quality multi-shot video generation
+
+### Text-to-Speech (2 models)
+- **dia-tts** - Dia: Ultra-realistic multi-speaker dialogue with emotions and nonverbal cues
+- **orpheus-tts** - Orpheus TTS 3B: Open-source TTS with emotion tags and natural speech
+
+### Music Generation (2 models)
+- **lyria-2** - Lyria 2: High-fidelity 48kHz stereo instrumental music generation
+- **minimax-music** - Minimax Music-01: Generate up to 60 seconds of music with vocals
+
+## Configuration Options
+
+Set these environment variables in your MCP client config:
+
+```json
+{
+  "env": {
+    "SEGMIND_API_KEY": "required - your API key",
+    "LOG_LEVEL": "info",  // error, warn, info, debug
+    "CACHE_ENABLED": "true",
+    "MAX_IMAGE_SIZE": "10485760"  // 10MB
+  }
+}
+```
+
+## Development
+
+If you want to contribute or modify the server:
+
+```bash
+git clone https://github.com/yourusername/segmind-mcp.git
+cd segmind-mcp
+npm install
+npm run build
+npm link
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for more details.
+
+## Troubleshooting
+
+### "API key not found" error
+Make sure your `SEGMIND_API_KEY` is set correctly in your MCP client's configuration.
+
+### "Command not found" error  
+Ensure npm's global bin directory is in your PATH, or use the full path to npx.
+
+### Images not displaying
+Your MCP client should display images automatically. Ensure you're using a client that supports image display.
+
+## Security
+
+- API keys are never logged or stored
+- All requests use HTTPS
+- Input validation on all parameters
+- Rate limiting to prevent abuse
+
+## Contributing
+
+Contributions are welcome! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+## Documentation
+
+- [Quick Start Guide](docs/QUICKSTART.md) - Getting started quickly
+- [User Guide](docs/USER_GUIDE.md) - Detailed usage and examples
+- [Available Models](docs/MODELS.md) - Complete model reference
+- [Contributing Guide](CONTRIBUTING.md) - How to contribute
+
+## Links
+
+- [Segmind API Documentation](https://docs.segmind.com)
+- [Model Context Protocol](https://modelcontextprotocol.io)
+- [Report Issues](https://github.com/yourusername/segmind-mcp/issues)

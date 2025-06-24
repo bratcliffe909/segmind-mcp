@@ -1,0 +1,132 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+.env*.local
+
+# Build outputs
+dist/
+build/
+out/
+lib/
+*.tsbuildinfo
+.next/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+.coverage
+htmlcov/
+test/output/
+test-*.jpg
+test-*.png
+test-*.mp4
+test-*.gif
+
+# Internal testing (with real API)
+test-internal/
+internal-test-*.jpg
+internal-test-*.png
+internal-test-*.mp4
+
+# Logs
+logs/
+*.log
+lerna-debug.log*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.cache
+
+# Security - Never commit these
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+config/secrets.json
+config/credentials.json
+private/
+
+# Package files
+*.tgz
+package-lock.json.backup
+yarn.lock.backup
+
+# Development
+.eslintcache
+.stylelintcache
+.parcel-cache/
+
+# Documentation build
+docs/_build/
+docs/.docusaurus/
+site/
+
+# Misc
+*.bak
+*.orig
+*.rej
+.npm/
+.yarn/
+
+# Project documentation (internal use only)
+project-docs/
+CLAUDE.md
+
+# Generated images and media files
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.mp4
+*.avi
+*.mov
+
+# Jest output
+*.coverage.json
+
+# Error logs from npm
+error.log
+combined.log
+
+# TypeScript incremental build files
+tsconfig.tsbuildinfo
+
+# Package manager lock files (we use npm with exact versions)
+yarn.lock
+pnpm-lock.yaml

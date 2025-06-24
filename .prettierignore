@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+
+# Documentation
+*.md
+
+# Other
+LICENSE
+.gitignore
+.prettierignore
+.eslintignore
+*.log
+*.json

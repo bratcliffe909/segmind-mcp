@@ -1,0 +1,81 @@
+# Source files (only ship built files)
+src/
+*.ts
+!*.d.ts
+
+# Test files
+test/
+test-internal/
+*.test.js
+*.test.d.ts
+jest.config.*
+coverage/
+.nyc_output/
+
+# Development files
+.eslintrc.*
+.prettierrc.*
+tsconfig.json
+*.tsbuildinfo
+.eslintcache
+
+# Documentation (except essentials)
+docs/
+project-docs/
+CLAUDE.md
+CONTRIBUTING.md
+*.md
+!README.md
+!LICENSE
+
+# Git and CI
+.git/
+.github/
+.gitignore
+.gitattributes
+
+# Environment and secrets
+.env*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.claude/
+
+# Build artifacts we don't need
+*.map
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*.cache
+
+# Generated files
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.mp4
+*.avi
+*.mov
+
+# Misc
+*.bak
+*.orig
+*.rej
+.npm/
+.yarn/
+.pnpm-store/
+node_modules/
