@@ -126,8 +126,26 @@ class ConfigurationLoader {
   }
 }
 
-// Export singleton configuration
-export const config = ConfigurationLoader.load();
+// Lazy-load configuration to avoid eager validation
+let _config: Config | null = null;
+
+export function getConfig(): Config {
+  if (!_config) {
+    _config = ConfigurationLoader.load();
+  }
+  return _config;
+}
+
+// For backwards compatibility, create a getter-based config object
+export const config = new Proxy({} as Config, {
+  get(_, prop) {
+    return getConfig()[prop as keyof Config];
+  }
+});
+
 export const getMaskedApiKey = (apiKey: string) => ConfigurationLoader.getMaskedApiKey(apiKey);
-export const resetConfig = () => ConfigurationLoader.reset();
+export const resetConfig = () => {
+  ConfigurationLoader.reset();
+  _config = null;
+};
 export { ConfigurationLoader };

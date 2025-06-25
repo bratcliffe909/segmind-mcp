@@ -18,12 +18,14 @@ This is the easiest method - no installation required!
 
 1. **Get your API key** from [segmind.com](https://segmind.com)
 
-2. **Configure your MCP client** by editing its configuration file:
-   - **Claude Desktop (macOS)**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - **Claude Desktop (Windows)**: `%APPDATA%\Claude\claude_desktop_config.json`
-   - **Other MCP clients**: Check your client's documentation for the config file location
+2. **Configure your MCP client**:
 
-3. **Add this configuration**:
+   #### For Claude Desktop:
+   Edit your configuration file:
+   - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+   Add this configuration:
    ```json
    {
      "mcpServers": {
@@ -38,9 +40,25 @@ This is the easiest method - no installation required!
    }
    ```
 
-4. **Restart your MCP client**
+   #### For Claude Code:
+   Use the command line:
+   ```bash
+   claude mcp add segmind -e SEGMIND_API_KEY=your_api_key_here -- npx segmind-mcp
+   ```
+   
+   For user scope (available across all projects):
+   ```bash
+   claude mcp add segmind -s user -e SEGMIND_API_KEY=your_api_key_here -- npx segmind-mcp
+   ```
 
-That's it! When you first use a Segmind command, npx will automatically download and run the latest version.
+   #### For Other MCP clients:
+   Check your client's documentation for the config file location
+
+3. **Verify the installation**:
+   - **Claude Desktop**: Restart the application
+   - **Claude Code**: Check connection with `/mcp` command
+
+When you first use a Segmind command, npx will automatically download and run the latest version.
 
 ### Method 2: Global Installation
 
@@ -51,7 +69,9 @@ For faster startup times, you can install the package globally:
    npm install -g segmind-mcp
    ```
 
-2. **Configure your MCP client** with this simpler configuration:
+2. **Configure your MCP client**:
+
+   #### Claude Desktop configuration:
    ```json
    {
      "mcpServers": {
@@ -65,7 +85,14 @@ For faster startup times, you can install the package globally:
    }
    ```
 
-3. **Restart your MCP client**
+   #### Claude Code command:
+   ```bash
+   claude mcp add segmind -e SEGMIND_API_KEY=your_api_key_here -- segmind-mcp
+   ```
+
+3. **Verify the installation**:
+   - **Claude Desktop**: Restart the application
+   - **Claude Code**: Check connection with `/mcp` command
 
 ### Method 3: Local Installation (Advanced)
 
@@ -123,6 +150,14 @@ Simply ask your AI assistant to generate an image:
 ```
 
 If everything is configured correctly, your AI assistant will use the Segmind MCP server to create the image.
+
+#### Claude Code specific:
+You can check which MCP servers are connected by typing:
+```
+/mcp
+```
+
+This will show you the status of all connected MCP servers, including Segmind.
 
 ## Configuration Options
 

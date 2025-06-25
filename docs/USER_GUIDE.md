@@ -16,11 +16,13 @@ This guide will help you use the Segmind MCP server with your AI assistant to ge
 
 No installation needed! Just configure your MCP client.
 
-Common configuration file locations:
-- **Claude Desktop (macOS)**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Claude Desktop (Windows)**: `%APPDATA%\Claude\claude_desktop_config.json`
-- **Other MCP clients**: See your client's documentation
+#### For Claude Desktop:
 
+Edit your configuration file:
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+Add the configuration:
 ```json
 {
   "mcpServers": {
@@ -35,6 +37,18 @@ Common configuration file locations:
 }
 ```
 
+#### For Claude Code:
+
+Use the command line:
+```bash
+claude mcp add segmind -e SEGMIND_API_KEY=your_api_key_here -- npx segmind-mcp
+```
+
+For user scope (available across all projects):
+```bash
+claude mcp add segmind -s user -e SEGMIND_API_KEY=your_api_key_here -- npx segmind-mcp
+```
+
 The package will be automatically downloaded when first used.
 
 ### Method 2: Global Installation
@@ -45,8 +59,7 @@ For faster startup times, install globally:
 npm install -g segmind-mcp
 ```
 
-Then use this simpler configuration:
-
+#### Claude Desktop configuration:
 ```json
 {
   "mcpServers": {
@@ -58,6 +71,11 @@ Then use this simpler configuration:
     }
   }
 }
+```
+
+#### Claude Code command:
+```bash
+claude mcp add segmind -e SEGMIND_API_KEY=your_api_key_here -- segmind-mcp
 ```
 
 ### Getting Your API Key

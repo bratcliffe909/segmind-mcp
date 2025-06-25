@@ -9,11 +9,13 @@ Sign up at [segmind.com](https://segmind.com) to get your API key.
 
 ### 2. Configure your MCP client
 
-Add to your MCP client's configuration file. For example:
-- **Claude Desktop** (macOS): `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Claude Desktop** (Windows): `%APPDATA%\Claude\claude_desktop_config.json`
-- **Other MCP clients**: Check your client's documentation for config location
+#### For Claude Desktop:
 
+Edit your configuration file:
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+Add the Segmind server:
 ```json
 {
   "mcpServers": {
@@ -28,7 +30,30 @@ Add to your MCP client's configuration file. For example:
 }
 ```
 
+#### For Claude Code:
+
+Use the command line to add the MCP server:
+```bash
+claude mcp add segmind -e SEGMIND_API_KEY=your_segmind_api_key_here -- npx segmind-mcp
+```
+
+For user scope (available across all projects):
+```bash
+claude mcp add segmind -s user -e SEGMIND_API_KEY=your_segmind_api_key_here -- npx segmind-mcp
+```
+
+Verify the connection:
+```bash
+/mcp
+```
+
+#### For Other MCP clients:
+Check your client's documentation for config location
+
 ### 3. Restart your MCP client
+
+- **Claude Desktop**: Restart the application
+- **Claude Code**: The server connects immediately, verify with `/mcp`
 
 That's it! The server will automatically download and run when needed. No installation or setup required!
 
@@ -40,7 +65,7 @@ If you prefer to install the package globally:
 npm install -g segmind-mcp
 ```
 
-Then use this simpler configuration:
+#### Claude Desktop configuration:
 ```json
 {
   "mcpServers": {
@@ -52,6 +77,11 @@ Then use this simpler configuration:
     }
   }
 }
+```
+
+#### Claude Code command:
+```bash
+claude mcp add segmind -e SEGMIND_API_KEY=your_segmind_api_key_here -- segmind-mcp
 ```
 
 ## Available Tools
