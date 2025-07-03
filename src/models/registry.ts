@@ -2,11 +2,13 @@ import { z } from 'zod';
 
 import { logger } from '../utils/logger.js';
 
-import { ModelCategory, ModelConfig, OutputType } from './types.js';
+import { ModelCategory, OutputType } from './types.js';
+import type { ModelConfig } from './types.js';
 import { WORKING_MODELS } from './working-models.js';
 
 // Re-export types for backward compatibility
-export { ModelCategory, OutputType, ModelConfig };
+export { ModelCategory, OutputType };
+export type { ModelConfig };
 
 export class ModelRegistry {
   private models: Map<string, ModelConfig> = new Map();
@@ -72,6 +74,10 @@ export class ModelRegistry {
 
   public getModelCategories(): ModelCategory[] {
     return Object.values(ModelCategory);
+  }
+
+  public getAllCategories(): ModelCategory[] {
+    return Array.from(this.modelsByCategory.keys());
   }
 
   public validateModelParameters(modelId: string, params: any): { 

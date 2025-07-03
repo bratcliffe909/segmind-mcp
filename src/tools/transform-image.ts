@@ -18,6 +18,7 @@ const TransformImageSchema = z.object({
   control_strength: z.number().min(0).max(2).default(1).describe('Control strength for ControlNet'),
   seed: z.number().int().optional().describe('Seed for reproducible generation'),
   output_format: z.enum(['png', 'jpeg', 'webp']).default('png').describe('Output image format'),
+  display_mode: z.enum(['display', 'save', 'both']).default('display').describe('How to return the image: display (show image), save (return base64 for saving), both (show image and provide base64)'),
 });
 
 type TransformImageParams = z.infer<typeof TransformImageSchema>;
@@ -73,13 +74,13 @@ export class TransformImageTool extends BaseTool {
       }
 
       // Execute transformation
-      const result = await this.callModel(model, paramValidation.data);
+      const result = await this.callModel(model, paramValidation.data, validated.display_mode);
       
       // Add transformation info
       const content: Array<TextContent | ImageContent> = [...result.content];
       content.push({
         type: 'text',
-        text: `\nImage transformed using ${model.name} with strength ${validated.strength}`,
+        text: `\nImage transformed using ${model.name} with strength ${validated.strength} (mode: ${validated.display_mode})`,
       } as TextContent);
 
       return { content };
@@ -148,7 +149,6 @@ export class TransformImageTool extends BaseTool {
         }
         break;
 
-      case 'flux-kontext-pro':
       default:
         if (params.strength !== undefined && model.parameters.shape.strength) {
           baseParams.strength = params.strength;
@@ -167,6 +167,11 @@ export class TransformImageTool extends BaseTool {
     // Add output format if supported
     if (model.parameters.shape.output_format) {
       baseParams.output_format = params.output_format;
+    }
+    
+    // Ensure base64 is true for proper MCP handling
+    if (model.parameters.shape.base64 !== undefined) {
+      baseParams.base64 = true;
     }
 
     // Merge with model defaults

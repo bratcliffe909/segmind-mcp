@@ -37,17 +37,23 @@ export interface SegmindModel {
 }
 
 export interface SegmindApiResponse<T = unknown> {
-  success: boolean;
+  // Segmind API doesn't return success field, presence of error indicates failure
   data?: T;
-  error?: {
+  error?: string | {
     message: string;
-    code: string;
+    code?: string;
   };
   credits?: {
     used: number;
     remaining: number;
   };
   metadata?: Record<string, any>;
+  // For image responses
+  image?: string;
+  // For video responses  
+  video_url?: string;
+  // For status responses
+  status?: string;
 }
 
 export interface ImageGenerationParams {

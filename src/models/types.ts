@@ -15,7 +15,7 @@ export enum OutputType {
   TEXT = 'text',
 }
 
-export type ModelConfig = {
+export interface ModelConfig {
   id: string;
   name: string;
   description: string;
@@ -32,4 +32,4 @@ export type ModelConfig = {
     width: number;
     height: number;
   };
-};
+}

@@ -1,13 +1,13 @@
 import dotenv from 'dotenv';
 import { z } from 'zod';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables silently
+dotenv.config({ silent: true } as any);
 
 // Configuration schema with validation
 const ConfigSchema = z.object({
   // API Configuration
-  apiKey: z.string().min(1).regex(/^(sg_|SG_)[a-zA-Z0-9]{12,}$/, 'Invalid Segmind API key format'),
+  apiKey: z.string().regex(/^(sg_|SG_)[a-zA-Z0-9]{12,}$/, 'Invalid Segmind API key format').optional(),
   baseUrl: z.string().url().default('https://api.segmind.com/v1'),
   
   // Server Configuration
@@ -56,8 +56,7 @@ class ConfigurationLoader {
       return this.instance;
     }
     
-    try {
-      const rawConfig = {
+    const rawConfig = {
         // API Configuration
         apiKey: process.env.SEGMIND_API_KEY || '',
         baseUrl: process.env.SEGMIND_BASE_URL,
@@ -95,13 +94,28 @@ class ConfigurationLoader {
         },
       };
       
+    try {
       // Parse and validate configuration
+      // Remove empty apiKey to make it truly optional
+      if (!rawConfig.apiKey || rawConfig.apiKey === '') {
+        delete (rawConfig as any).apiKey;
+      }
+      
       this.instance = ConfigSchema.parse(rawConfig);
       return this.instance;
       
     } catch (error) {
       if (error instanceof z.ZodError) {
         const issues = error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join(', ');
+        
+        // Don't throw on missing API key - just log a warning
+        if (issues.includes('apiKey') && process.env.MCP_MODE === 'true') {
+          // Return config without API key
+          delete (rawConfig as any).apiKey;
+          this.instance = ConfigSchema.parse(rawConfig);
+          return this.instance;
+        }
+        
         throw new Error(`Configuration validation failed: ${issues}`);
       }
       throw error;

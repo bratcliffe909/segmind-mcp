@@ -189,14 +189,22 @@ export function mapToSafeError(error: unknown): SafeError {
     }
     
     // Log the original error for debugging (in production, this would go to a secure log)
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === 'development' && process.env.MCP_MODE !== 'true') {
       console.error('Original error:', error);
     }
   }
   
-  // Default to generic internal error
+  // For other errors, include the actual error message
+  let errorMessage = 'An error occurred processing your request';
+  if (error instanceof Error) {
+    errorMessage = error.message || errorMessage;
+  } else if (typeof error === 'string') {
+    errorMessage = error;
+  }
+  
+  // Default to internal error with actual message
   return new SafeError(
-    'An error occurred processing your request',
+    errorMessage,
     ErrorCode.INTERNAL_ERROR,
     500,
   );

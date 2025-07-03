@@ -28,7 +28,7 @@ Add the configuration:
   "mcpServers": {
     "segmind": {
       "command": "npx",
-      "args": ["segmind-mcp"],
+      "args": ["-y", "@bratcliffe909/mcp-server-segmind@latest"],
       "env": {
         "SEGMIND_API_KEY": "your_api_key_here"
       }
@@ -41,12 +41,12 @@ Add the configuration:
 
 Use the command line:
 ```bash
-claude mcp add segmind -e SEGMIND_API_KEY=your_api_key_here -- npx segmind-mcp
+claude mcp add segmind -e SEGMIND_API_KEY=your_api_key_here -- npx -y @bratcliffe909/mcp-server-segmind@latest
 ```
 
 For user scope (available across all projects):
 ```bash
-claude mcp add segmind -s user -e SEGMIND_API_KEY=your_api_key_here -- npx segmind-mcp
+claude mcp add segmind -s user -e SEGMIND_API_KEY=your_api_key_here -- npx -y @bratcliffe909/mcp-server-segmind@latest
 ```
 
 The package will be automatically downloaded when first used.
@@ -56,7 +56,7 @@ The package will be automatically downloaded when first used.
 For faster startup times, install globally:
 
 ```bash
-npm install -g segmind-mcp
+npm install -g @bratcliffe909/mcp-server-segmind
 ```
 
 #### Claude Desktop configuration:
@@ -64,7 +64,7 @@ npm install -g segmind-mcp
 {
   "mcpServers": {
     "segmind": {
-      "command": "segmind-mcp",
+      "command": "mcp-server-segmind",
       "env": {
         "SEGMIND_API_KEY": "your_api_key_here"
       }
@@ -75,7 +75,7 @@ npm install -g segmind-mcp
 
 #### Claude Code command:
 ```bash
-claude mcp add segmind -e SEGMIND_API_KEY=your_api_key_here -- segmind-mcp
+claude mcp add segmind -e SEGMIND_API_KEY=your_api_key_here -- mcp-server-segmind
 ```
 
 ### Getting Your API Key
@@ -240,6 +240,15 @@ With specific requirements:
 "Create a modern minimalist logo for a tech startup, geometric shapes, blue and white colors, generate 4 variations"
 ```
 
+### Saving Images Directly
+```
+# For Claude Code - save image directly
+"Generate a product photo of a sleek laptop, display_mode='save'"
+
+# For viewing and saving
+"Create an avatar portrait, display_mode='both'"
+```
+
 ### Photo Enhancement
 ```
 "Upscale this product photo by 4x and enhance details using esrgan"
@@ -328,12 +337,50 @@ Use seeds for reproducible results:
 - Generate fewer outputs to save credits
 - Use lower resolution/duration for drafts
 
-### 6. Common Issues
+### 6. Displaying Images in Claude Desktop
+
+When using the segmind-mcp server with Claude Desktop, images are generated successfully but may not always display inline. Here are your options:
+
+**Option 1: Use display_mode parameter**
+Control how image data is returned:
+- `display_mode: "display"` (default) - Returns image for display
+- `display_mode: "save"` - Returns base64 data for saving
+- `display_mode: "both"` - Returns both image and base64 data
+
+```
+"Generate a sunset landscape with display_mode='save'"
+"Create a portrait with display_mode='both' to see and save it"
+```
+
+**Option 2: Save and View Images**
+If images don't display inline:
+1. Use `display_mode: "save"` to get the base64 data
+2. The response includes BASE64_IMAGE markers
+3. Copy the base64 data between the markers to save the image
+
+**Option 3: Use File Attachments**
+For immediate viewing in Claude Desktop:
+1. Generate with `display_mode: "save"`
+2. Save the decoded image to a file
+3. Use Claude Desktop's paperclip icon to attach and view
+
+### 7. Cost Estimation
+
+Use the new `estimate_cost` tool to check credit usage before generating:
+
+```
+"Estimate the cost of generating 5 images with sdxl"
+"Show me the cost for all text-to-image models"
+"What would it cost to generate a 30-second video?"
+```
+
+### 8. Common Issues
 
 **"Model not found"**: Check the model ID spelling
 **"Invalid dimensions"**: Use multiples of 8 (256, 512, 768, 1024, etc.)
 **"API key error"**: Verify your API key in the config
 **"Rate limit"**: Wait a moment between requests
+**"Images not displaying"**: Use display_mode options or file attachments
 
 ## Advanced Usage
 
@@ -386,6 +433,35 @@ Use seeds for reproducible results:
 ```
 
 ## Troubleshooting
+
+### Saving Generated Images
+
+The Segmind MCP server now supports a `display_mode` parameter for all image generation tools:
+
+**Display Modes**:
+- `display` (default): Shows the image in your interface
+- `save`: Returns base64 data as text for easy saving
+- `both`: Shows the image AND provides base64 data
+
+**Examples**:
+```
+# View the image (default)
+"Generate a sunset landscape"
+
+# Get base64 data for saving
+"Generate a sunset landscape with display_mode='save'"
+
+# Both view and save
+"Generate a sunset landscape with display_mode='both'"
+```
+
+**For Claude Desktop users**: Use `display` mode to see images
+**For Claude Code users**: Use `save` mode to get base64 data for direct file operations
+
+**When using save mode**:
+- The base64 data is returned between `BASE64_IMAGE_START` and `BASE64_IMAGE_END` markers
+- Extract this data and decode it to save as an image file
+- The response includes MIME type and suggested file extension
 
 ### API Key Issues
 - Ensure key starts with `sg_`

@@ -17,6 +17,7 @@ const EnhanceImageSchema = z.object({
   alpha_matting: z.boolean().default(true).describe('Use alpha matting for cleaner edges'),
   denoise_strength: z.number().min(0).max(1).default(0.5).describe('Denoising strength'),
   batch_size: z.number().int().min(1).max(10).default(1).describe('Number of images to process'),
+  display_mode: z.enum(['display', 'save', 'both']).default('display').describe('How to return the image: display (show image), save (return base64 for saving), both (show image and provide base64)'),
 });
 
 type EnhanceImageParams = z.infer<typeof EnhanceImageSchema>;
@@ -80,7 +81,7 @@ export class EnhanceImageTool extends BaseTool {
         }
 
         // Execute enhancement
-        const result = await this.callModel(model, paramValidation.data);
+        const result = await this.callModel(model, paramValidation.data, validated.display_mode);
         results.push(...result.content);
       }
 
@@ -152,7 +153,7 @@ export class EnhanceImageTool extends BaseTool {
     // Model-specific parameter mapping
     switch (model.id) {
       case 'esrgan':
-        baseParams.scale = params.scale;
+        baseParams.scale = parseInt(params.scale, 10);  // Convert string to number
         baseParams.face_enhance = params.face_enhance;
         break;
       
@@ -170,6 +171,11 @@ export class EnhanceImageTool extends BaseTool {
           baseParams.denoise_strength = params.denoise_strength;
         }
         break;
+    }
+    
+    // Ensure base64 is true for proper MCP handling
+    if (model.parameters.shape.base64 !== undefined) {
+      baseParams.base64 = true;
     }
 
     // Merge with model defaults
@@ -246,7 +252,8 @@ export class EnhanceImageTool extends BaseTool {
     return `\nEnhancement complete:
 - Operation: ${operationText}
 - Model: ${model.name}
-- Batch Size: ${params.batch_size}${params.batch_size > 1 ? ' images' : ' image'}`;
+- Batch Size: ${params.batch_size}${params.batch_size > 1 ? ' images' : ' image'}
+- Display Mode: ${params.display_mode}`;
   }
 }
 

@@ -4,6 +4,7 @@ export { transformImageTool } from './transform-image.js';
 export { generateVideoTool } from './generate-video.js';
 export { enhanceImageTool } from './enhance-image.js';
 export { specializedGenerationTool } from './specialized-generation.js';
+export { estimateCostTool } from './estimate-cost.js';
 
 // Export base class for extensions
 export { BaseTool } from './base.js';

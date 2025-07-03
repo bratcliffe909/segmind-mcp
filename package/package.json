@@ -1,12 +1,12 @@
 {
-  "name": "@bratcliffe909/mcp-server-segmind",
-  "version": "1.0.23",
+  "name": "@bratcliffe909/segmind-mcp",
+  "version": "1.0.8",
   "description": "Model Context Protocol server for Segmind API - Generate images and videos using AI models",
   "type": "module",
   "main": "dist/server.js",
   "types": "dist/server.d.ts",
   "bin": {
-    "mcp-server-segmind": "dist/index.js"
+    "segmind-mcp": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -22,17 +22,6 @@
     "test:internal:text2img": "tsx test-internal/test-text2img.ts",
     "test:internal:video": "tsx test-internal/test-video-models.ts",
     "test:internal:audio": "tsx test-internal/test-audio-models.ts",
-    "test:mcp": "tsx test-internal/test-mcp-behavior.ts",
-    "test:mcp:full": "tsx test-internal/test-mcp-behavior.ts --include-video --include-audio",
-    "test:mcp:text2img": "tsx test-internal/test-mcp-behavior.ts text2img",
-    "test:mcp:img2img": "tsx test-internal/test-mcp-behavior.ts img2img",
-    "test:mcp:enhancement": "tsx test-internal/test-mcp-behavior.ts enhancement",
-    "test:mcp:video": "tsx test-internal/test-mcp-behavior.ts video",
-    "test:mcp:specialized": "tsx test-internal/test-mcp-behavior.ts specialized",
-    "test:endpoints": "tsx test-internal/test-all-endpoints.ts",
-    "test:endpoints:full": "tsx test-internal/test-all-endpoints.ts --include-video",
-    "test:superhero": "tsx test-internal/test-superhero-mcp.ts",
-    "test:superhero:all": "tsx test-internal/test-superhero-mcp.ts all",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -53,7 +42,7 @@
     "imagen",
     "llm-tools"
   ],
-  "author": "Ben Ratcliffe <ben@benratcliffe.co.uk>",
+  "author": "Your Name <ben@benratcliffe.co.uk>",
   "license": "MIT",
   "repository": {
     "type": "git",

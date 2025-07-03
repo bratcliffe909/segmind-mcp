@@ -31,7 +31,7 @@ This is the easiest method - no installation required!
      "mcpServers": {
        "segmind": {
          "command": "npx",
-         "args": ["segmind-mcp"],
+         "args": ["-y", "@bratcliffe909/mcp-server-segmind@latest"],
          "env": {
            "SEGMIND_API_KEY": "your_api_key_here"
          }
@@ -43,12 +43,12 @@ This is the easiest method - no installation required!
    #### For Claude Code:
    Use the command line:
    ```bash
-   claude mcp add segmind -e SEGMIND_API_KEY=your_api_key_here -- npx segmind-mcp
+   claude mcp add segmind -e SEGMIND_API_KEY=your_api_key_here -- npx -y @bratcliffe909/mcp-server-segmind@latest
    ```
    
    For user scope (available across all projects):
    ```bash
-   claude mcp add segmind -s user -e SEGMIND_API_KEY=your_api_key_here -- npx segmind-mcp
+   claude mcp add segmind -s user -e SEGMIND_API_KEY=your_api_key_here -- npx -y @bratcliffe909/mcp-server-segmind@latest
    ```
 
    #### For Other MCP clients:
@@ -66,7 +66,7 @@ For faster startup times, you can install the package globally:
 
 1. **Install the package**:
    ```bash
-   npm install -g segmind-mcp
+   npm install -g @bratcliffe909/mcp-server-segmind
    ```
 
 2. **Configure your MCP client**:
@@ -76,7 +76,7 @@ For faster startup times, you can install the package globally:
    {
      "mcpServers": {
        "segmind": {
-         "command": "segmind-mcp",
+         "command": "mcp-server-segmind",
          "env": {
            "SEGMIND_API_KEY": "your_api_key_here"
          }
@@ -87,7 +87,7 @@ For faster startup times, you can install the package globally:
 
    #### Claude Code command:
    ```bash
-   claude mcp add segmind -e SEGMIND_API_KEY=your_api_key_here -- segmind-mcp
+   claude mcp add segmind -e SEGMIND_API_KEY=your_api_key_here -- mcp-server-segmind
    ```
 
 3. **Verify the installation**:
@@ -106,7 +106,7 @@ For specific version control or custom modifications:
 
 2. **Install locally**:
    ```bash
-   npm install segmind-mcp
+   npm install @bratcliffe909/mcp-server-segmind
    ```
 
 3. **Configure with full path**:
@@ -115,7 +115,7 @@ For specific version control or custom modifications:
      "mcpServers": {
        "segmind": {
          "command": "node",
-         "args": ["~/mcp-servers/node_modules/segmind-mcp/dist/index.js"],
+         "args": ["~/mcp-servers/node_modules/@bratcliffe909/mcp-server-segmind/dist/index.js"],
          "env": {
            "SEGMIND_API_KEY": "your_api_key_here"
          }
@@ -132,12 +132,12 @@ After configuration, you can verify your setup:
 
 1. If using npx:
    ```bash
-   npx segmind-mcp test-api
+   npx @bratcliffe909/mcp-server-segmind@latest test-api
    ```
 
 2. If installed globally:
    ```bash
-   segmind-mcp test-api
+   mcp-server-segmind test-api
    ```
 
 This will check if your API key is valid and properly configured.
@@ -168,7 +168,7 @@ You can add optional environment variables to your MCP configuration:
   "mcpServers": {
     "segmind": {
       "command": "npx",
-      "args": ["segmind-mcp"],
+      "args": ["-y", "@bratcliffe909/mcp-server-segmind@latest"],
       "env": {
         "SEGMIND_API_KEY": "your_api_key_here",
         "LOG_LEVEL": "info",        // Options: error, warn, info, debug
@@ -188,13 +188,13 @@ You can add optional environment variables to your MCP configuration:
 
 ### With global installation (Method 2)
 ```bash
-npm update -g segmind-mcp
+npm update -g @bratcliffe909/mcp-server-segmind
 ```
 
 ### With local installation (Method 3)
 ```bash
 cd ~/mcp-servers
-npm update segmind-mcp
+npm update @bratcliffe909/mcp-server-segmind
 ```
 
 ## Troubleshooting
@@ -225,13 +225,13 @@ Just remove the configuration from your MCP client's config file.
 
 ### If installed globally
 ```bash
-npm uninstall -g segmind-mcp
+npm uninstall -g @bratcliffe909/mcp-server-segmind
 ```
 
 ### If installed locally
 ```bash
 cd ~/mcp-servers
-npm uninstall segmind-mcp
+npm uninstall @bratcliffe909/mcp-server-segmind
 ```
 
 ## Next Steps

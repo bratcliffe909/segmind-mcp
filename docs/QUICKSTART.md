@@ -29,7 +29,7 @@ Add this to your MCP client's configuration file. Common locations:
   "mcpServers": {
     "segmind": {
       "command": "npx",
-      "args": ["segmind-mcp"],
+      "args": ["-y", "@bratcliffe909/mcp-server-segmind@latest"],
       "env": {
         "SEGMIND_API_KEY": "your_api_key_here"
       }
@@ -47,7 +47,7 @@ That's it! The server will automatically download and run when needed.
 If you prefer to install globally:
 
 ```bash
-npm install -g segmind-mcp
+npm install -g @bratcliffe909/mcp-server-segmind
 ```
 
 Then use this configuration:
@@ -56,7 +56,7 @@ Then use this configuration:
 {
   "mcpServers": {
     "segmind": {
-      "command": "segmind-mcp",
+      "command": "mcp-server-segmind",
       "env": {
         "SEGMIND_API_KEY": "your_api_key_here"
       }
@@ -165,8 +165,8 @@ Optional environment variables in your MCP config:
 - No extra spaces or quotes
 
 ### "Command not found"  
-- Try using `npx segmind-mcp` instead
-- Or install globally: `npm install -g segmind-mcp`
+- Try using `npx -y @bratcliffe909/mcp-server-segmind@latest` instead
+- Or install globally: `npm install -g @bratcliffe909/mcp-server-segmind`
 
 ### Images not showing
 - Ensure your MCP client supports image display
@@ -178,10 +178,10 @@ If you want to verify your API key works:
 
 ```bash
 # Test without installing
-npx segmind-mcp test-api
+npx @bratcliffe909/mcp-server-segmind@latest test-api
 
 # Or if installed globally
-segmind-mcp test-api
+mcp-server-segmind test-api
 ```
 
 ## Support

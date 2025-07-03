@@ -17,6 +17,7 @@ const GenerateImageSchema = z.object({
   seed: z.number().int().optional().describe('Seed for reproducible generation'),
   quality: z.enum(['draft', 'standard', 'high']).default('standard').describe('Quality preset'),
   style: z.string().optional().describe('Style modifier (e.g., "photorealistic", "anime", "oil painting")'),
+  display_mode: z.enum(['display', 'save', 'both']).default('display').describe('How to return the image: display (show image), save (return base64 for saving), both (show image and provide base64)'),
 });
 
 type GenerateImageParams = z.infer<typeof GenerateImageSchema>;
@@ -64,14 +65,14 @@ export class GenerateImageTool extends BaseTool {
       for (let i = 0; i < validated.num_images; i++) {
         logger.info(`Generating image ${i + 1} of ${validated.num_images}`);
         
-        const result = await this.callModel(model, paramValidation.data);
+        const result = await this.callModel(model, paramValidation.data, validated.display_mode);
         results.push(...result.content);
       }
 
       // Add metadata
       results.push({
         type: 'text',
-        text: `\nGenerated ${validated.num_images} image(s) using ${model.name}`,
+        text: `\nGenerated ${validated.num_images} image(s) using ${model.name} (mode: ${validated.display_mode})`,
       } as TextContent);
 
       return { content: results };
@@ -126,12 +127,9 @@ export class GenerateImageTool extends BaseTool {
     }
 
     // Handle dimensions
-    if (model.id === 'gpt-image-1') {
-      // GPT Image uses size presets
-      baseParams.size = this.mapToGPTSize(params.width, params.height);
-    } else if (model.id === 'ideogram-3') {
-      // Ideogram uses aspect ratios
-      baseParams.aspect_ratio = this.mapToAspectRatio(params.width, params.height);
+    if (model.id === 'fooocus') {
+      // Fooocus uses aspect_ratio parameter
+      baseParams.aspect_ratio = this.mapToFoocusAspectRatio(params.width, params.height);
     } else {
       // Most models use width/height but some use img_width/img_height
       if (params.width) {
@@ -156,10 +154,16 @@ export class GenerateImageTool extends BaseTool {
         if (model.parameters.shape.num_inference_steps) {
           baseParams.num_inference_steps = Math.max(10, (model.defaultParams?.num_inference_steps || 30) / 3);
         }
+        if (model.parameters.shape.steps) {
+          baseParams.steps = Math.max(20, 30 / 2);  // Fooocus min is 20
+        }
         break;
       case 'high':
         if (model.parameters.shape.num_inference_steps) {
           baseParams.num_inference_steps = Math.min(150, (model.defaultParams?.num_inference_steps || 30) * 2);
+        }
+        if (model.parameters.shape.steps) {
+          baseParams.steps = Math.min(100, 30 * 2);  // Fooocus max is 100
         }
         if (model.parameters.shape.quality) {
           baseParams.quality = 'hd';
@@ -172,6 +176,11 @@ export class GenerateImageTool extends BaseTool {
       baseParams.seed = params.seed;
     }
 
+    // Ensure base64 is true for proper MCP handling
+    if (model.parameters.shape.base64 !== undefined) {
+      baseParams.base64 = true;
+    }
+    
     // Merge with model defaults
     return this.mergeWithDefaults(baseParams, model);
   }
@@ -194,30 +203,22 @@ export class GenerateImageTool extends BaseTool {
     return prompt;
   }
 
-  private mapToGPTSize(width?: number, height?: number): string {
-    if (!width || !height) return '1024x1024';
-    
-    const ratio = width / height;
-    
-    if (Math.abs(ratio - 1) < 0.1) return '1024x1024';
-    if (ratio > 1.5) return '1792x1024';
-    if (ratio < 0.67) return '1024x1792';
-    
-    return '1024x1024';
-  }
 
-  private mapToAspectRatio(width?: number, height?: number): string {
-    if (!width || !height) return '1:1';
+  private mapToFoocusAspectRatio(width?: number, height?: number): string {
+    // Fooocus uses format like "1024*1024" instead of ratios
+    if (!width || !height) return '1024*1024';
     
-    const ratio = width / height;
+    // Common Fooocus aspect ratios
+    if (width === 1024 && height === 1024) return '1024*1024';
+    if (width === 1152 && height === 896) return '1152*896';
+    if (width === 896 && height === 1152) return '896*1152';
+    if (width === 1216 && height === 832) return '1216*832';
+    if (width === 832 && height === 1216) return '832*1216';
+    if (width === 1344 && height === 768) return '1344*768';
+    if (width === 768 && height === 1344) return '768*1344';
     
-    if (Math.abs(ratio - 1) < 0.1) return '1:1';
-    if (Math.abs(ratio - 16/9) < 0.1) return '16:9';
-    if (Math.abs(ratio - 9/16) < 0.1) return '9:16';
-    if (Math.abs(ratio - 4/3) < 0.1) return '4:3';
-    if (Math.abs(ratio - 3/4) < 0.1) return '3:4';
-    
-    return '1:1';
+    // Default to requested size or 1024*1024
+    return `${width || 1024}*${height || 1024}`;
   }
 }
 

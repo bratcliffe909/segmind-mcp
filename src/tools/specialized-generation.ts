@@ -38,6 +38,7 @@ const SpecializedGenerationSchema = z.object({
   negative_prompt: z.string().optional().describe('What to avoid in generation'),
   seed: z.number().int().optional().describe('Seed for reproducible generation'),
   num_outputs: z.number().int().min(1).max(4).default(1).describe('Number of variations to generate'),
+  display_mode: z.enum(['display', 'save', 'both']).default('display').describe('How to return the image: display (show image), save (return base64 for saving), both (show image and provide base64)'),
 });
 
 type SpecializedGenerationParams = z.infer<typeof SpecializedGenerationSchema>;
@@ -101,7 +102,7 @@ export class SpecializedGenerationTool extends BaseTool {
         }
 
         // Execute generation
-        const result = await this.callModel(model, paramValidation.data);
+        const result = await this.callModel(model, paramValidation.data, validated.display_mode);
         results.push(...result.content);
       }
 
@@ -249,6 +250,11 @@ export class SpecializedGenerationTool extends BaseTool {
     if (seed !== undefined && model.parameters.shape.seed) {
       baseParams.seed = seed;
     }
+    
+    // Ensure base64 is true for proper MCP handling
+    if (model.parameters.shape.base64 !== undefined) {
+      baseParams.base64 = true;
+    }
 
     // Merge with model defaults
     return this.mergeWithDefaults(baseParams, model);
@@ -294,7 +300,7 @@ export class SpecializedGenerationTool extends BaseTool {
       logo: `${params.logo_style} logo for "${params.logo_text}"`,
     };
 
-    return `\nGenerated ${params.num_outputs} ${typeDescriptions[params.type] || params.type}${params.num_outputs > 1 ? ' variations' : ''} using ${model.name}`;
+    return `\nGenerated ${params.num_outputs} ${typeDescriptions[params.type] || params.type}${params.num_outputs > 1 ? ' variations' : ''} using ${model.name} (mode: ${params.display_mode})`;
   }
 }
 

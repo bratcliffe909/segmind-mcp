@@ -34,7 +34,7 @@ export class SegmindApiClient {
   
   constructor() {
     this.baseUrl = config.baseUrl;
-    this.apiKey = config.apiKey;
+    this.apiKey = config.apiKey || '';
     this.defaultTimeout = config.limits.requestTimeout;
     
     this.retryConfig = {
@@ -52,6 +52,11 @@ export class SegmindApiClient {
     endpoint: string,
     options: RequestOptions = {},
   ): Promise<SegmindApiResponse<T>> {
+    // Check for API key early
+    if (!this.apiKey || this.apiKey.length === 0) {
+      throw new AuthenticationError('SEGMIND_API_KEY is not configured. Please set it in your environment or MCP configuration.');
+    }
+    
     const {
       method = 'GET',
       body,
@@ -129,6 +134,24 @@ export class SegmindApiClient {
         throw new InsufficientCreditsError();
       }
       
+      // Check for 406 which might be insufficient credits
+      if (response.status === 406) {
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          try {
+            const errorData = await response.json() as any;
+            if (errorData?.error && typeof errorData.error === 'string' && errorData.error.toLowerCase().includes('credits')) {
+              throw new InsufficientCreditsError(errorData.error);
+            }
+            throw new Error(errorData?.error || `API request failed with status ${response.status}`);
+          } catch (e) {
+            if (e instanceof InsufficientCreditsError) throw e;
+            throw new Error(`API request failed with status ${response.status}`);
+          }
+        }
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+      
       // Check if retry is needed
       if (
         this.retryConfig.retryableStatuses.includes(response.status) &&
@@ -183,11 +206,11 @@ export class SegmindApiClient {
         }
         
         responseData = {
-          success: true,
           data: {
-            [dataKey]: `data:${mimeType};base64,${base64}`,
+            [dataKey]: base64,  // Return pure base64 without data URL prefix
             format: mimeType ? mimeType.split('/')[1] : 'unknown',
             size: buffer.byteLength,
+            mimeType: mimeType,  // Include mimeType separately
           } as T,
           credits: {
             used: parseInt(response.headers.get('x-credits-consumed') || '0', 10),
@@ -199,15 +222,19 @@ export class SegmindApiClient {
         responseData = await response.json() as SegmindApiResponse<T>;
         
         // Check for API errors
-        if (!response.ok || !responseData.success) {
+        // Segmind API returns error field when there's an error, not a success field
+        if (!response.ok || responseData.error) {
           logger.error('API error response', {
             status: response.status,
             error: responseData.error,
+            data: responseData,
           });
           
-          throw new Error(
-            responseData.error?.message || `API request failed with status ${response.status}`,
-          );
+          const errorMessage = typeof responseData.error === 'string' 
+            ? responseData.error 
+            : responseData.error?.message || `API request failed with status ${response.status}`;
+          
+          throw new Error(errorMessage);
         }
         
         // Extract credit information from headers if not in response
@@ -283,7 +310,7 @@ export class SegmindApiClient {
         retries: 1,
       });
       
-      return response.success;
+      return !response.error;
     } catch (error) {
       logger.error('Health check failed', { error });
       return false;
@@ -314,12 +341,9 @@ export class SegmindApiClient {
     const modelEndpointMap: Record<string, string> = {
       'sdxl': '/sdxl1.0-txt2img',
       'sdxl-img2img': '/sdxl1.0-img2img',
-      'sd1.5': '/sd1.5-txt2img',
-      // The following endpoints may need verification:
-      'flux-1-pro': '/models/flux-pro',  
-      'flux-dev': '/models/flux-dev',
-      'ideogram-3': '/models/ideogram-v3',
+      'sd15-img2img': '/sd1.5-img2img',
       'esrgan': '/esrgan',
+      // Note: Other working models use their ID as endpoint directly
     };
     
     const endpoint = modelEndpointMap[model] || `/${model}`;

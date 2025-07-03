@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-import { ModelCategory, OutputType, ModelConfig } from './types.js';
+import { ModelCategory, OutputType } from './types.js';
+import type { ModelConfig } from './types.js';
 
 // Based on actual testing, these are the confirmed working models
 export const WORKING_MODELS: ModelConfig[] = [
@@ -66,14 +67,15 @@ export const WORKING_MODELS: ModelConfig[] = [
     creditsPerUse: 0.4,
     parameters: z.object({
       prompt: z.string(),
-      negative_prompt: z.string().optional().default(''),
-      image_number: z.number().min(1).max(4).default(1),
-      image_seed: z.number().optional().default(12345),
-      sharpness: z.number().min(0).max(30).default(2),
-      guidance_scale: z.number().min(1).max(30).default(7),
-      base_model: z.string().optional().default('juggernautXL_version6Rundiffusion'),
-      refiner_model: z.string().optional().default('None'),
-      loras: z.string().optional().default('[]'),
+      negative_prompt: z.string().optional(),
+      steps: z.number().min(20).max(100).default(30),
+      samples: z.number().min(1).max(4).default(1),
+      styles: z.string().optional().default('V2,Enhance,Sharp'),
+      aspect_ratio: z.string().optional().default('1024*1024'),
+      seed: z.number().optional().default(-1),
+      guidance_scale: z.number().min(1).max(25).default(4),
+      scheduler: z.string().optional().default('DPM++ SDE'),
+      base_model: z.string().optional().default('juggernaut_v8'),
     }),
     supportedFormats: ['png', 'jpeg'],
     maxDimensions: { width: 2048, height: 2048 }
@@ -91,11 +93,14 @@ export const WORKING_MODELS: ModelConfig[] = [
     parameters: z.object({
       prompt: z.string(),
       negative_prompt: z.string().optional(),
-      img_width: z.number().min(256).max(2048).multipleOf(8).default(512),
-      img_height: z.number().min(256).max(2048).multipleOf(8).default(512),
-      num_inference_steps: z.number().min(1).max(100).default(20),
-      guidance_scale: z.number().min(1).max(20).default(7.5),
-      seed: z.number().optional().default(12345),
+      samples: z.number().min(1).max(4).default(1),
+      scheduler: z.string().optional().default('DPM2 Karras'),
+      num_inference_steps: z.number().min(20).max(100).default(25),
+      guidance_scale: z.number().min(1).max(25).default(7.5),
+      seed: z.number().optional().default(-1),
+      img_width: z.number().default(1024),
+      img_height: z.number().default(1024),
+      base64: z.boolean().optional().default(false),
     }),
     supportedFormats: ['png', 'jpeg'],
     maxDimensions: { width: 2048, height: 2048 }
@@ -169,7 +174,7 @@ export const WORKING_MODELS: ModelConfig[] = [
   {
     id: 'veo-3',
     name: 'Google Veo 3',
-    description: 'Advanced text-to-video generation with realistic audio synthesis for cinematic content',
+    description: 'Advanced text-to-video generation with realistic audio synthesis for cinematic content (WARNING: Uses 2.0 credits per generation)',
     category: ModelCategory.VIDEO_GENERATION,
     endpoint: '/veo-3',
     apiVersion: 'v1',

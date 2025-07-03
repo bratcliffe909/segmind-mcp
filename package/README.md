@@ -36,12 +36,12 @@ Add the Segmind server:
 
 Use the command line to add the MCP server:
 ```bash
-claude mcp add segmind -e SEGMIND_API_KEY=your_segmind_api_key_here -- npx -y @bratcliffe909/mcp-server-segmind@latest
+claude mcp add segmind -e SEGMIND_API_KEY=your_segmind_api_key_here -- npx -y @bratcliffe909/mcp-server-segmind
 ```
 
 For user scope (available across all projects):
 ```bash
-claude mcp add segmind -s user -e SEGMIND_API_KEY=your_segmind_api_key_here -- npx -y @bratcliffe909/mcp-server-segmind@latest
+claude mcp add segmind -s user -e SEGMIND_API_KEY=your_segmind_api_key_here -- npx -y @bratcliffe909/mcp-server-segmind
 ```
 
 Verify the connection:
@@ -208,24 +208,6 @@ Generate specialized content like speech, music, QR codes, and stickers.
 - Speech options: emotions, multiple speakers, speed
 - Music options: duration, style, instrumental or with vocals
 
-### 💰 estimate_cost
-Check credit costs before generating content.
-
-**Examples:**
-```
-"Estimate the cost of generating 5 images with sdxl"
-"Show me the cost for all text-to-image models"
-"What would it cost to create a 30-second video with veo-3?"
-"List all model costs"
-```
-
-**Available Options:**
-- `model`: Specific model to estimate
-- `category`: Model category to compare
-- `num_images`: Number of images (1-10)
-- `num_outputs`: Number of outputs (1-10)
-- `list_all`: Show all model costs
-
 ## Supported Models
 
 The server includes 13 verified working models:
@@ -275,8 +257,8 @@ Set these environment variables in your MCP client config:
 If you want to contribute or modify the server:
 
 ```bash
-git clone https://github.com/bratcliffe909/segmind-mcp.git
-cd segmind-mcp
+git clone https://github.com/bratcliffe909/mcp-server-segmind.git
+cd mcp-server-segmind
 npm install
 npm run build
 npm link
@@ -367,4 +349,4 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 - [Segmind API Documentation](https://docs.segmind.com)
 - [Model Context Protocol](https://modelcontextprotocol.io)
-- [Report Issues](https://github.com/bratcliffe909/segmind-mcp/issues)
+- [Report Issues](https://github.com/bratcliffe909/mcp-server-segmind/issues)

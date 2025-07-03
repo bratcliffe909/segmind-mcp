@@ -119,7 +119,7 @@ function createLogger(): winston.Logger {
     defaultMeta: { service: 'segmind-mcp' },
     transports: [
       new winston.transports.Console({
-        silent: config.nodeEnv === 'test',
+        silent: config.nodeEnv === 'test' || process.env.MCP_MODE === 'true',
       }),
     ],
   });
@@ -147,8 +147,17 @@ function createLogger(): winston.Logger {
   return logger;
 }
 
-// Create and export the logger instance
-export const logger = createLogger();
+// Create and export the logger instance lazily
+let _logger: winston.Logger | null = null;
+
+export const logger = new Proxy({} as winston.Logger, {
+  get(_target, prop) {
+    if (!_logger) {
+      _logger = createLogger();
+    }
+    return (_logger as any)[prop];
+  }
+});
 
 /**
  * Log with context

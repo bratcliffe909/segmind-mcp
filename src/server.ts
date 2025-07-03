@@ -16,10 +16,10 @@ import {
   transformImageTool,
   generateVideoTool,
   enhanceImageTool,
-  specializedGenerationTool
+  specializedGenerationTool,
+  estimateCostTool
 } from './tools/index.js';
 import type { ServerState } from './types/index.js';
-import { config, getMaskedApiKey } from './utils/config.js';
 import { mapToSafeError, formatErrorResponse } from './utils/errors.js';
 import { logger } from './utils/logger.js';
 
@@ -46,13 +46,62 @@ export class SegmindMCPServer {
           tools: {},
           resources: {},
           prompts: {},
+          logging: {}, // Enable logging capability
         },
       },
     );
     
+    // Set up initialization callback
+    this.server.oninitialized = () => {
+      // Now it's safe to send notifications after MCP handshake is complete
+      void this.handlePostInitialization();
+    };
+    
     this.setupHandlers();
   }
   
+  /**
+   * Handle post-initialization tasks
+   */
+  private async handlePostInitialization(): Promise<void> {
+    try {
+      // Now we can safely send notifications
+      await this.sendMCPLog('info', 'Segmind MCP Server initialized');
+      
+      // Check API key and notify via MCP
+      const hasApiKey = !!process.env.SEGMIND_API_KEY;
+      if (!hasApiKey) {
+        await this.sendMCPLog('warning', 'SEGMIND_API_KEY not found', {
+          help: 'Please set SEGMIND_API_KEY in your environment or MCP configuration',
+          impact: 'API calls will fail without a valid API key',
+        });
+      }
+    } catch (err) {
+      // Silently fail if we can't send notifications
+      logger.error('Failed to send post-initialization notifications', { error: err });
+    }
+  }
+
+  /**
+   * Send log message through MCP protocol
+   */
+  async sendMCPLog(
+    level: 'debug' | 'info' | 'notice' | 'warning' | 'error' | 'critical' | 'alert' | 'emergency',
+    message: string,
+    data?: unknown
+  ): Promise<void> {
+    try {
+      await this.server.sendLoggingMessage({
+        level,
+        logger: 'segmind-mcp',
+        data: data ? { message, ...data } : message,
+      });
+    } catch (err) {
+      // If we can't send logs via MCP, fall back to internal logger
+      logger.error('Failed to send MCP log', { level, message, error: err });
+    }
+  }
+
   /**
    * Set up request handlers
    */
@@ -69,7 +118,7 @@ export class SegmindMCPServer {
         tools: [
           {
             name: 'generate_image',
-            description: 'Generate images from text prompts using various AI models',
+            description: 'Generate images from text prompts using various AI models. Returns base64-encoded image data with MIME type information.',
             inputSchema: {
               type: 'object',
               properties: {
@@ -122,6 +171,12 @@ export class SegmindMCPServer {
                 style: {
                   type: 'string',
                   description: 'Style modifier (e.g., "photorealistic", "anime", "oil painting")',
+                },
+                display_mode: {
+                  type: 'string',
+                  description: 'How to return the image: display (show image), save (return base64 for saving), both (show image and provide base64)',
+                  enum: ['display', 'save', 'both'],
+                  default: 'display',
                 },
               },
               required: ['prompt'],
@@ -199,6 +254,12 @@ export class SegmindMCPServer {
                 seed: {
                   type: 'number',
                   description: 'Seed for reproducible generation',
+                },
+                display_mode: {
+                  type: 'string',
+                  description: 'How to return the image: display (show image), save (return base64 for saving), both (show image and provide base64)',
+                  enum: ['display', 'save', 'both'],
+                  default: 'display',
                 },
               },
               required: ['image', 'prompt'],
@@ -302,6 +363,12 @@ export class SegmindMCPServer {
                   maximum: 10,
                   default: 1,
                 },
+                display_mode: {
+                  type: 'string',
+                  description: 'How to return the image: display (show image), save (return base64 for saving), both (show image and provide base64)',
+                  enum: ['display', 'save', 'both'],
+                  default: 'display',
+                },
               },
               required: ['image', 'operation'],
             },
@@ -365,8 +432,51 @@ export class SegmindMCPServer {
                   type: 'number',
                   description: 'Seed for reproducible generation',
                 },
+                display_mode: {
+                  type: 'string',
+                  description: 'How to return the image: display (show image), save (return base64 for saving), both (show image and provide base64)',
+                  enum: ['display', 'save', 'both'],
+                  default: 'display',
+                },
               },
               required: ['type'],
+            },
+          },
+          {
+            name: 'estimate_cost',
+            description: 'Estimate the credit cost and time for image/video generation operations',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                operation: {
+                  type: 'string',
+                  description: 'Type of operation (generate, transform, enhance, etc.)',
+                },
+                model: {
+                  type: 'string',
+                  description: 'Model ID to estimate cost for',
+                },
+                category: {
+                  type: 'string',
+                  description: 'Model category to list costs for',
+                },
+                num_images: {
+                  type: 'number',
+                  description: 'Number of images to generate',
+                  minimum: 1,
+                  maximum: 10,
+                },
+                num_outputs: {
+                  type: 'number',
+                  description: 'Number of outputs to generate',
+                  minimum: 1,
+                  maximum: 10,
+                },
+                list_all: {
+                  type: 'boolean',
+                  description: 'List costs for all available models',
+                },
+              },
             },
           },
           {
@@ -469,28 +579,19 @@ export class SegmindMCPServer {
             };
           }
           
+          case 'estimate_cost':
+            return await estimateCostTool.execute(args);
+          
           case 'check_credits': {
-            try {
-              const credits = await apiClient.getCredits();
-              return {
-                content: [
-                  {
-                    type: 'text',
-                    text: `API Credits:\nRemaining: ${credits.remaining}\nUsed: ${credits.used}`,
-                  },
-                ],
-              };
-            } catch (error) {
-              logger.warn('Failed to fetch credits, using mock data');
-              return {
-                content: [
-                  {
-                    type: 'text',
-                    text: 'API Credits:\nRemaining: 1000\nUsed: 0\n\n(Note: Using mock data - API connection pending)',
-                  },
-                ],
-              };
-            }
+            const credits = await apiClient.getCredits();
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: `API Credits:\nRemaining: ${credits.remaining}\nUsed: ${credits.used}`,
+                },
+              ],
+            };
           }
             
           default:
@@ -499,6 +600,14 @@ export class SegmindMCPServer {
       } catch (error) {
         const safeError = mapToSafeError(error);
         logger.error('Tool execution failed', formatErrorResponse(safeError));
+        
+        // Send error via MCP for client visibility
+        await this.sendMCPLog('error', `Tool execution failed: ${name}`, {
+          tool: name,
+          error: safeError.userMessage,
+          code: safeError.code,
+        });
+        
         throw safeError;
       } finally {
         this.state.activeRequests--;
@@ -607,42 +716,22 @@ export class SegmindMCPServer {
         }
         
         if (uri === 'segmind://credits') {
-          try {
-            const credits = await apiClient.getCredits();
-            return {
-              contents: [
-                {
-                  uri,
-                  mimeType: 'application/json',
-                  text: JSON.stringify({
-                    credits: {
-                      remaining: credits.remaining,
-                      used: credits.used,
-                    },
-                    lastUpdated: new Date().toISOString(),
-                  }, null, 2),
-                },
-              ],
-            };
-          } catch (error) {
-            logger.warn('Failed to fetch credits, using mock data');
-            return {
-              contents: [
-                {
-                  uri,
-                  mimeType: 'application/json',
-                  text: JSON.stringify({
-                    credits: {
-                      remaining: 1000,
-                      used: 0,
-                    },
-                    lastUpdated: new Date().toISOString(),
-                    note: 'Using mock data - API connection pending',
-                  }, null, 2),
-                },
-              ],
-            };
-          }
+          const credits = await apiClient.getCredits();
+          return {
+            contents: [
+              {
+                uri,
+                mimeType: 'application/json',
+                text: JSON.stringify({
+                  credits: {
+                    remaining: credits.remaining,
+                    used: credits.used,
+                  },
+                  lastUpdated: new Date().toISOString(),
+                }, null, 2),
+              },
+            ],
+          };
         }
         
         throw new Error(`Unknown resource: ${uri}`);
@@ -719,24 +808,45 @@ export class SegmindMCPServer {
    */
   async start(): Promise<void> {
     try {
-      logger.info('Starting Segmind MCP Server', {
-        version: '0.1.0',
-        nodeVersion: process.version,
-        apiKey: getMaskedApiKey(config.apiKey),
-      });
-      
       // Create stdio transport
       const transport = new StdioServerTransport();
+      
+      // Set up transport event handlers
+      transport.onclose = () => {
+        logger.info('Transport closed, shutting down server');
+        // Exit cleanly when stdio transport closes
+        process.exit(0);
+      };
+      
+      transport.onerror = (error) => {
+        logger.error('Transport error', { error });
+        // Exit with error code when transport has an error
+        process.exit(1);
+      };
+      
+      // Set error handler on the server
+      this.server.onerror = (error) => {
+        // Don't log to console in MCP mode to avoid stdio interference
+        logger.error('MCP Server Error', { error });
+        // Also send via MCP protocol for client visibility
+        void this.sendMCPLog('error', 'MCP Server Error', { error: error.message || error });
+      };
       
       // Connect server to transport
       await this.server.connect(transport);
       
       this.state.isInitialized = true;
+      
+      // Don't log to console in MCP mode to avoid interfering with stdio transport
       logger.info('Segmind MCP Server started successfully');
       
+      // Don't send MCP notifications during startup as it interferes with protocol initialization
+      // The client will discover API key status when it tries to use the tools
+      
     } catch (error) {
+      // Don't log to console in MCP mode
       logger.error('Failed to start server', { error });
-      throw mapToSafeError(error);
+      throw error;
     }
   }
   
