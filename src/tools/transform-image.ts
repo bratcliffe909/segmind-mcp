@@ -1,8 +1,11 @@
+import * as fs from 'fs/promises';
+import * as path from 'path';
+
 import { CallToolResult, TextContent, ImageContent } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 
-
 import { modelRegistry, ModelCategory } from '../models/registry.js';
+import { imageCache } from '../utils/image-cache.js';
 import { logger } from '../utils/logger.js';
 
 import { BaseTool } from './base.js';
@@ -18,7 +21,7 @@ const TransformImageSchema = z.object({
   control_strength: z.number().min(0).max(2).default(1).describe('Control strength for ControlNet'),
   seed: z.number().int().optional().describe('Seed for reproducible generation'),
   output_format: z.enum(['png', 'jpeg', 'webp']).default('png').describe('Output image format'),
-  display_mode: z.enum(['display', 'save', 'both']).default('display').describe('How to return the image: display (show image), save (return base64 for saving), both (show image and provide base64)'),
+  save_location: z.string().optional().describe('Directory path to save the image. Overrides default save location.'),
 });
 
 type TransformImageParams = z.infer<typeof TransformImageSchema>;
@@ -73,14 +76,23 @@ export class TransformImageTool extends BaseTool {
         };
       }
 
+      // Determine save location
+      let saveLocation = validated.save_location;
+      
+      // If no save location specified but input was a file path, save to the same file
+      if (!saveLocation && imageValidation.originalFilePath) {
+        saveLocation = imageValidation.originalFilePath;
+        logger.info(`Saving transformed image back to original location: ${saveLocation}`);
+      }
+      
       // Execute transformation
-      const result = await this.callModel(model, paramValidation.data, validated.display_mode);
+      const result = await this.callModel(model, paramValidation.data, saveLocation);
       
       // Add transformation info
       const content: Array<TextContent | ImageContent> = [...result.content];
       content.push({
         type: 'text',
-        text: `\nImage transformed using ${model.name} with strength ${validated.strength} (mode: ${validated.display_mode})`,
+        text: `\nImage transformed using ${model.name} with strength ${validated.strength}`,
       } as TextContent);
 
       return { content };
@@ -169,9 +181,10 @@ export class TransformImageTool extends BaseTool {
       baseParams.output_format = params.output_format;
     }
     
-    // Ensure base64 is true for proper MCP handling
+    // Set base64 to false to get binary response
+    // Our API client will handle the conversion to base64
     if (model.parameters.shape.base64 !== undefined) {
-      baseParams.base64 = true;
+      baseParams.base64 = false;
     }
 
     // Merge with model defaults
@@ -179,6 +192,87 @@ export class TransformImageTool extends BaseTool {
   }
 
   private async validateImageInput(input: string): Promise<ImageValidationResult> {
+    // Check if it's a file path (absolute path on any OS)
+    const isFilePath = (
+      input.match(/^[A-Za-z]:\\/) || // Windows path like C:\
+      input.startsWith('/') ||        // Unix absolute path
+      input.startsWith('~/')           // Home directory path
+    );
+    
+    if (isFilePath) {
+      try {
+        // Expand home directory if needed
+        let filePath = input;
+        if (input.startsWith('~/')) {
+          filePath = input.replace('~', process.env.HOME || process.env.USERPROFILE || '');
+        }
+        
+        // Make sure it's absolute
+        if (!path.isAbsolute(filePath)) {
+          return {
+            isValid: false,
+            error: 'File path must be absolute',
+          };
+        }
+        
+        // Check if file exists
+        await fs.access(filePath);
+        
+        // Read and convert to base64
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
+        const imageBuffer = await fs.readFile(filePath);
+        const base64String = imageBuffer.toString('base64');
+        
+        // Get mime type from extension
+        const ext = path.extname(filePath).toLowerCase();
+        const mimeTypes: Record<string, string> = {
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.png': 'image/png',
+          '.gif': 'image/gif',
+          '.webp': 'image/webp',
+          '.bmp': 'image/bmp',
+        };
+        
+        const mimeType = mimeTypes[ext] || 'image/png';
+        
+        // Store in cache to avoid passing large strings
+        const cacheId = imageCache.store(base64String, mimeType, filePath);
+        
+        logger.info(`Automatically converted file path to cache ID: ${cacheId}`);
+        
+        return {
+          isValid: true,
+          format: 'cached',
+          cacheId,
+          size: imageBuffer.length,
+          originalFilePath: filePath,
+        };
+      } catch (error) {
+        return {
+          isValid: false,
+          error: `Failed to read file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        };
+      }
+    }
+    
+    // Check if it's an image cache ID
+    if (input.startsWith('img_')) {
+      const cachedImage = imageCache.get(input);
+      if (cachedImage) {
+        return {
+          isValid: true,
+          format: 'cached',
+          cacheId: input,
+          size: cachedImage.size,
+        };
+      }
+      return {
+        isValid: false,
+        error: `Image cache ID ${input} not found or expired. Please use prepare_image again.`,
+      };
+    }
+
     // Check if it's a URL
     if (input.startsWith('http://') || input.startsWith('https://')) {
       // For now, assume URLs are valid
@@ -237,7 +331,7 @@ export class TransformImageTool extends BaseTool {
 
     return {
       isValid: false,
-      error: 'Image must be a valid URL or base64 encoded string',
+      error: 'Image must be a valid URL, base64 encoded string, or image cache ID from prepare_image',
     };
   }
 
@@ -245,19 +339,29 @@ export class TransformImageTool extends BaseTool {
     input: string, 
     validation: ImageValidationResult
   ): Promise<string> {
+    // If it's a cached image, retrieve it
+    if (validation.format === 'cached' && validation.cacheId) {
+      const cachedImage = imageCache.get(validation.cacheId);
+      if (cachedImage) {
+        // Return plain base64 without data URI prefix for Segmind API
+        return cachedImage.base64;
+      }
+      throw new Error(`Image cache ID ${validation.cacheId} not found`);
+    }
+
     // If it's already a URL, return as-is
     if (validation.format === 'url') {
       return input;
     }
 
-    // If it's base64 with data URI, return as-is
+    // If it's base64 with data URI, strip the prefix for Segmind API
     if (input.startsWith('data:image/')) {
-      return input;
+      const base64Part = input.split(',')[1];
+      return base64Part || input;
     }
 
-    // If it's plain base64, add data URI prefix
-    // Assume PNG if no format specified
-    return `data:image/png;base64,${input}`;
+    // If it's already plain base64, return as-is
+    return input;
   }
 }
 
@@ -266,9 +370,11 @@ export const transformImageTool = new TransformImageTool();
 // Type definitions for image validation
 interface ImageValidationResult {
   isValid: boolean;
-  format?: 'url' | 'base64';
+  format?: 'url' | 'base64' | 'cached';
   size?: number;
   width?: number;
   height?: number;
   error?: string;
+  cacheId?: string;
+  originalFilePath?: string;
 }

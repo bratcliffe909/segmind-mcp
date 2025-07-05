@@ -2,24 +2,31 @@ import { describe, it, expect } from '@jest/globals';
 import { GenerateImageTool } from '../src/tools/generate-image.js';
 import { WORKING_MODELS } from '../src/models/working-models.js';
 
+// Mock fs module
+jest.mock('fs', () => ({
+  mkdirSync: jest.fn(),
+  writeFileSync: jest.fn(),
+  existsSync: jest.fn().mockReturnValue(true),
+}));
+
 // Mock the API client module
 jest.mock('../src/api/client', () => ({
   apiClient: {
     request: jest.fn().mockResolvedValue({
-      success: true,
       data: {
-        image: 'data:image/png;base64,mockbase64data',
+        image: 'mockbase64data',
         format: 'png',
         size: 1024,
+        mimeType: 'image/png',
       },
       credits: { used: 1, remaining: 100 },
     }),
     generateImage: jest.fn().mockResolvedValue({
-      success: true,
       data: {
-        image: 'data:image/png;base64,mockbase64data',
+        image: 'mockbase64data',
         format: 'png',
         size: 1024,
+        mimeType: 'image/png',
       },
       credits: { used: 1, remaining: 100 },
     }),

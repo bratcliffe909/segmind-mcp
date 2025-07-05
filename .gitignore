@@ -107,6 +107,9 @@ site/
 project-docs/
 CLAUDE.md
 
+# Package directory from npm pack
+package/
+
 # Generated images and media files
 *.jpg
 *.jpeg
@@ -130,3 +133,6 @@ tsconfig.tsbuildinfo
 # Package manager lock files (we use npm with exact versions)
 yarn.lock
 pnpm-lock.yaml
+
+# Cost tracking data
+.segmind-cost-data.json

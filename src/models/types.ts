@@ -3,9 +3,11 @@ import { z } from 'zod';
 export enum ModelCategory {
   TEXT_TO_IMAGE = 'text2img',
   IMAGE_TO_IMAGE = 'img2img',
-  VIDEO_GENERATION = 'video',
+  TEXT_TO_VIDEO = 'text2video',
+  IMAGE_TO_VIDEO = 'img2video',
+  TEXT_TO_AUDIO = 'text2audio',
+  TEXT_TO_MUSIC = 'text2music',
   IMAGE_ENHANCEMENT = 'enhancement',
-  SPECIALIZED_GENERATION = 'specialized',
 }
 
 export enum OutputType {

@@ -374,6 +374,17 @@ Create original music from text descriptions.
 - `duration`: Music length in seconds - Minimax only
 - `seed`: Reproducible randomness
 
+## Detailed Parameter Documentation
+
+For comprehensive documentation of all parameters for each model, including:
+- Complete parameter descriptions
+- Valid ranges and constraints  
+- Default values
+- Available options (schedulers, styles, voices, etc.)
+- Model-specific features
+
+**→ See: [Complete Parameter Reference](PARAMETERS.md)**
+
 ## Tips for Best Results
 
 ### Image Generation

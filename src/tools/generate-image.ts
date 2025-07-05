@@ -17,7 +17,7 @@ const GenerateImageSchema = z.object({
   seed: z.number().int().optional().describe('Seed for reproducible generation'),
   quality: z.enum(['draft', 'standard', 'high']).default('standard').describe('Quality preset'),
   style: z.string().optional().describe('Style modifier (e.g., "photorealistic", "anime", "oil painting")'),
-  display_mode: z.enum(['display', 'save', 'both']).default('display').describe('How to return the image: display (show image), save (return base64 for saving), both (show image and provide base64)'),
+  save_location: z.string().optional().describe('Directory path to save the image(s). Overrides default save location.'),
 });
 
 type GenerateImageParams = z.infer<typeof GenerateImageSchema>;
@@ -65,14 +65,14 @@ export class GenerateImageTool extends BaseTool {
       for (let i = 0; i < validated.num_images; i++) {
         logger.info(`Generating image ${i + 1} of ${validated.num_images}`);
         
-        const result = await this.callModel(model, paramValidation.data, validated.display_mode);
+        const result = await this.callModel(model, paramValidation.data, validated.save_location);
         results.push(...result.content);
       }
 
       // Add metadata
       results.push({
         type: 'text',
-        text: `\nGenerated ${validated.num_images} image(s) using ${model.name} (mode: ${validated.display_mode})`,
+        text: `\nGenerated ${validated.num_images} image(s) using ${model.name}`,
       } as TextContent);
 
       return { content: results };
@@ -96,24 +96,22 @@ export class GenerateImageTool extends BaseTool {
     // Otherwise, select based on requirements
     const t2iModels = modelRegistry.getModelsByCategory(ModelCategory.TEXT_TO_IMAGE);
     
-    // Simple selection logic based on quality and features
-    if (params.quality === 'high' || params.width && params.width > 1536) {
-      // Prefer FLUX.1 Pro for high quality
-      return t2iModels.find(m => m.id === 'flux-1-pro') || t2iModels[0];
-    }
-    
-    if (params.style?.includes('anime')) {
-      // Would select anime-specific model if available
+    // Special case: if user explicitly requests high quality, use a better model
+    if (params.quality === 'high') {
+      // Use SDXL for high quality (0.3 credits vs 0.2 for lightning)
       return t2iModels.find(m => m.id === 'sdxl') || t2iModels[0];
     }
-
-    if (params.prompt.length > 2000) {
-      // GPT Image 1 supports longer prompts
-      return t2iModels.find(m => m.id === 'gpt-image-1') || t2iModels[0];
+    
+    // Special case: Fooocus has specific style presets that might be needed
+    if (params.style?.includes('anime') || params.style?.includes('enhance')) {
+      // Fooocus has built-in style support but costs 0.4 credits
+      // Only use if specifically requested
+      return t2iModels.find(m => m.id === 'fooocus') || t2iModels.find(m => m.id === 'sdxl-lightning') || t2iModels[0];
     }
 
-    // Default to SDXL for good balance of speed and quality
-    return t2iModels.find(m => m.id === 'sdxl') || t2iModels[0];
+    // DEFAULT: Always use the cheapest model (sdxl-lightning at 0.2 credits)
+    // This saves users money unless they explicitly need specific features
+    return t2iModels.find(m => m.id === 'sdxl-lightning') || t2iModels[0];
   }
 
   private prepareModelParameters(params: GenerateImageParams, model: any): any {
@@ -176,9 +174,10 @@ export class GenerateImageTool extends BaseTool {
       baseParams.seed = params.seed;
     }
 
-    // Ensure base64 is true for proper MCP handling
+    // Set base64 to false to get binary response
+    // Our API client will handle the conversion to base64
     if (model.parameters.shape.base64 !== undefined) {
-      baseParams.base64 = true;
+      baseParams.base64 = false;
     }
     
     // Merge with model defaults

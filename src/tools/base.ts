@@ -1,7 +1,14 @@
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+
 import { CallToolResult, TextContent, ImageContent } from '@modelcontextprotocol/sdk/types.js';
 
 import { apiClient } from '../api/client.js';
 import { ModelConfig, ModelCategory } from '../models/registry.js';
+import { OutputType } from '../models/types.js';
+import { config } from '../utils/config.js';
+import { costTracker } from '../utils/cost-tracker.js';
 import { 
   NetworkError, 
   TimeoutError, 
@@ -36,7 +43,7 @@ export abstract class BaseTool {
   protected async callModel(
     model: ModelConfig,
     parameters: any,
-    displayMode: 'display' | 'save' | 'both' = 'display',
+    saveLocation?: string,
   ): Promise<GenerationResult> {
     const startTime = Date.now();
     
@@ -45,17 +52,39 @@ export abstract class BaseTool {
         model: model.id,
         category: model.category,
         requestId: this.context?.requestId,
-        displayMode,
+        parameters: parameters,
       });
 
       // Make API request
       // Use generateImage for image models, request for others
-      const response = model.outputType === 'image' && model.category !== ModelCategory.IMAGE_ENHANCEMENT
+      // Calculate timeout: use max of (3x estimated time, minimum based on output type)
+      let timeout = model.estimatedTime * 1000 * 3; // 3x estimated time for safety
+      
+      if (model.outputType === OutputType.VIDEO) {
+        // Video generation needs longer timeout - at least 5 minutes
+        timeout = Math.max(timeout, 300000); // 5 minutes minimum for video
+      } else if (model.outputType === OutputType.AUDIO) {
+        // Audio generation (TTS/music) needs longer timeout - at least 5 minutes
+        timeout = Math.max(timeout, 300000); // 5 minutes minimum for audio
+      } else if (model.category === ModelCategory.IMAGE_ENHANCEMENT) {
+        // Image enhancement might also need more time
+        timeout = Math.max(timeout, 180000); // 3 minutes minimum
+      }
+      
+      logger.info(`Model timeout configured`, {
+        model: model.id,
+        estimatedTime: model.estimatedTime,
+        calculatedTimeout: model.estimatedTime * 1000 * 3,
+        finalTimeout: timeout,
+        timeoutMinutes: (timeout / 1000 / 60).toFixed(2),
+      });
+      
+      const response = model.outputType === OutputType.IMAGE && model.category !== ModelCategory.IMAGE_ENHANCEMENT
         ? await apiClient.generateImage(model.id, parameters)
         : await apiClient.request(model.endpoint, {
             method: 'POST',
             body: parameters,
-            timeout: model.estimatedTime * 1000 * 2, // 2x estimated time
+            timeout,
           });
 
       const processingTime = Date.now() - startTime;
@@ -66,8 +95,19 @@ export abstract class BaseTool {
         creditsUsed: response.credits?.used,
       });
 
+      // Track actual cost from API response
+      if (response.credits?.used) {
+        costTracker.recordCost(model.id, response.credits.used, {
+          resolution: parameters.img_width && parameters.img_height 
+            ? `${parameters.img_width}x${parameters.img_height}` 
+            : undefined,
+          quality: parameters.quality,
+          samples: parameters.samples || parameters.num_images,
+        });
+      }
+
       return {
-        content: this.processModelResponse(response, model, displayMode),
+        content: await this.processModelResponse(response, model, parameters.prompt, saveLocation),
         model: model.id,
         creditsUsed: response.credits?.used || model.creditsPerUse,
         processingTime,
@@ -83,16 +123,28 @@ export abstract class BaseTool {
     }
   }
 
-  protected processModelResponse(
+  protected async processModelResponse(
     response: any,
     model: ModelConfig,
-    displayMode: 'display' | 'save' | 'both' = 'display',
-  ): Array<TextContent | ImageContent> {
+    prompt?: string,
+    saveLocation?: string,
+  ): Promise<Array<TextContent | ImageContent>> {
     const content: Array<TextContent | ImageContent> = [];
+
+    // Debug logging
+    logger.debug('Processing model response', {
+      modelId: model.id,
+      outputType: model.outputType,
+      responseKeys: Object.keys(response || {}),
+      dataKeys: Object.keys(response.data || {}),
+      hasImage: !!response.data?.image,
+      hasImages: !!response.data?.images,
+      creditsUsed: response.credits?.used
+    });
 
     // Handle different output types
     switch (model.outputType) {
-      case 'image':
+      case OutputType.IMAGE:
         if (response.data?.image) {
           // Get mime type from response or default to image/png
           const mimeType = response.data.mimeType || 'image/png';
@@ -106,27 +158,19 @@ export abstract class BaseTool {
             }
           }
           
-          if (displayMode === 'save') {
-            // Return only base64 string for saving
+          // Save image to file
+          const savedPath = await this.saveImageToFile(base64Data, mimeType, model, prompt, saveLocation);
+          
+          if (savedPath) {
             content.push({
               type: 'text',
-              text: `BASE64_IMAGE_START\n${base64Data}\nBASE64_IMAGE_END`,
-            });
-            content.push({
-              type: 'text',
-              text: `\nImage data ready for saving. MIME type: ${mimeType}, Extension: .${mimeType.split('/')[1] || 'jpg'}`,
-            });
-          } else {
-            // Return as image for display (display or both mode)
-            content.push({
-              type: 'image',
-              data: base64Data,  // Pure base64 without data URL prefix
-              mimeType: mimeType,
+              text: `Image saved to: ${savedPath}`,
             });
           }
         } else if (response.data?.images) {
           // Handle multiple images
-          response.data.images.forEach((img: string, index: number) => {
+          for (let index = 0; index < response.data.images.length; index++) {
+            const img = response.data.images[index];
             const mimeType = response.data.mimeType || 'image/png';
             let base64Data = img;
             
@@ -138,25 +182,15 @@ export abstract class BaseTool {
               }
             }
             
-            if (displayMode === 'save') {
+            // Save to file
+            const savedPath = await this.saveImageToFile(base64Data, mimeType, model, prompt ? `${prompt}-${index + 1}` : undefined, saveLocation);
+            
+            if (savedPath) {
               content.push({
                 type: 'text',
-                text: `BASE64_IMAGE_${index + 1}_START\n${base64Data}\nBASE64_IMAGE_${index + 1}_END`,
-              });
-            } else {
-              content.push({
-                type: 'image',
-                data: base64Data,  // Pure base64 without data URL prefix
-                mimeType: mimeType,
+                text: `Image ${index + 1} saved to: ${savedPath}`,
               });
             }
-          });
-          
-          if (displayMode === 'save' && response.data?.images?.length > 0) {
-            content.push({
-              type: 'text',
-              text: `\n${response.data.images.length} image(s) ready for saving. MIME type: ${response.data.mimeType || 'image/png'}`,
-            });
           }
         } else if (response.data?.url) {
           // Return URL as text if base64 not available
@@ -164,24 +198,64 @@ export abstract class BaseTool {
             type: 'text',
             text: `Image generated successfully. View at: ${response.data.url}`,
           });
+        } else {
+          // Log unexpected response structure for debugging
+          logger.warn('Unexpected image response structure', {
+            modelId: model.id,
+            dataKeys: Object.keys(response.data || {}),
+            dataType: typeof response.data,
+          });
+          
+          // Fallback: show error instead of raw data
+          content.push({
+            type: 'text',
+            text: 'Image generated but response format was unexpected. Please check the logs.',
+          });
         }
         break;
 
-      case 'video':
+      case OutputType.VIDEO:
         if (response.data?.video_url) {
           content.push({
             type: 'text',
             text: `Video generated successfully. View at: ${response.data.video_url}`,
           });
+        } else if (response.data?.video) {
+          // If video is base64, save it
+          const videoPath = await this.saveVideoToFile(response.data.video, response.data.mimeType || 'video/mp4', model, saveLocation);
+          if (videoPath) {
+            content.push({
+              type: 'text',
+              text: `Video saved to: ${videoPath}`,
+            });
+          }
         }
         break;
 
-      case 'text':
+      case OutputType.TEXT:
         if (response.data?.text) {
           content.push({
             type: 'text',
             text: response.data.text,
           });
+        }
+        break;
+
+      case OutputType.AUDIO:
+        if (response.data?.audio_url) {
+          content.push({
+            type: 'text',
+            text: `Audio generated successfully. Download: ${response.data.audio_url}`,
+          });
+        } else if (response.data?.audio) {
+          // If audio is base64, save it
+          const audioPath = await this.saveAudioToFile(response.data.audio, 'audio/mpeg', model, saveLocation);
+          if (audioPath) {
+            content.push({
+              type: 'text',
+              text: `Audio saved to: ${audioPath}`,
+            });
+          }
         }
         break;
 
@@ -200,59 +274,6 @@ export abstract class BaseTool {
       });
     }
     
-    // Add helpful instructions based on display mode
-    if (model.outputType === 'image') {
-      if (displayMode === 'save' && content.some(c => c.type === 'text' && c.text.includes('BASE64_IMAGE'))) {
-        content.push({
-          type: 'text',
-          text: `\n📝 Save Instructions:
-The base64 data above (between BASE64_IMAGE_START and BASE64_IMAGE_END markers) can be:
-1. Decoded from base64
-2. Written to a file with the appropriate extension
-3. The data is ready for direct file operations`,
-        });
-      } else if (displayMode === 'display' && content.some(c => c.type === 'image')) {
-        const imageContent = content.find(c => c.type === 'image') as any;
-        const mimeType = imageContent?.mimeType || 'image/jpeg';
-        const extension = mimeType.split('/')[1] || 'jpg';
-        
-        // Calculate approximate size
-        const imageSizeBytes = imageContent?.data ? Buffer.from(imageContent.data, 'base64').length : 0;
-        const imageSizeKB = Math.round(imageSizeBytes / 1024);
-        const sizeWarning = imageSizeKB > 900 ? ' ⚠️ Large image (may exceed MCP limit)' : '';
-        
-        content.push({
-          type: 'text',
-          text: `\n🖼️ Image generated successfully! (${imageSizeKB}KB${sizeWarning})
-          
-**Claude Desktop Users**: If the image doesn't appear above:
-• Try: "Generate again with display_mode='save'" to get base64 data
-• Or: "Generate again with display_mode='both'" for both views
-• Alternative: Save the image locally and attach via 📎 paperclip
-
-**Format**: ${mimeType} (save as .${extension})`,
-        });
-      } else if (displayMode === 'both' && content.some(c => c.type === 'image')) {
-        // For 'both' mode, we need to add the base64 data after the image
-        const imageContents = content.filter(c => c.type === 'image');
-        imageContents.forEach((img: any, index: number) => {
-          content.push({
-            type: 'text',
-            text: `\nBASE64_IMAGE_${index + 1}_START\n${img.data}\nBASE64_IMAGE_${index + 1}_END`,
-          });
-        });
-        
-        content.push({
-          type: 'text',
-          text: `\n📝 Display + Save Mode:
-✅ Images displayed above (if supported by your client)
-✅ Base64 data provided below for saving
-
-To save: Copy the text between BASE64_IMAGE_START and BASE64_IMAGE_END markers, 
-decode from base64, and save with the appropriate extension.`,
-        });
-      }
-    }
 
     return content;
   }
@@ -345,7 +366,7 @@ decode from base64, and save with the appropriate extension.`,
           const processingTime = Date.now() - startTime;
           
           return {
-            content: this.processModelResponse(statusResponse, model),
+            content: await this.processModelResponse(statusResponse, model),
             model: model.id,
             creditsUsed: statusResponse.credits?.used || model.creditsPerUse,
             processingTime,
@@ -377,5 +398,152 @@ decode from base64, and save with the appropriate extension.`,
       ...model.defaultParams,
       ...params,
     };
+  }
+
+  protected async saveImageToFile(
+    base64Data: string,
+    mimeType: string,
+    model: ModelConfig,
+    _prompt?: string,
+    saveLocationOverride?: string
+  ): Promise<string | null> {
+    try {
+      // Determine file extension
+      const extension = mimeType.split('/')[1] || 'jpg';
+      
+      let filePath: string;
+      
+      // Check if saveLocationOverride is a full file path or directory
+      if (saveLocationOverride && path.extname(saveLocationOverride)) {
+        // It's a full file path - use it directly (for overwriting original)
+        filePath = saveLocationOverride;
+        // Ensure parent directory exists
+        const saveDir = path.dirname(filePath);
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
+        fs.mkdirSync(saveDir, { recursive: true });
+      } else {
+        // It's a directory path - generate filename
+        const timestamp = Date.now();
+        const modelName = model.id;
+        const filename = `${modelName}-${timestamp}.${extension}`;
+        
+        // Use override location if provided, otherwise use config, otherwise temp
+        const saveDir = saveLocationOverride || config.fileOutput.saveLocation || os.tmpdir();
+        
+        // Ensure directory exists
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
+        fs.mkdirSync(saveDir, { recursive: true });
+        
+        // Full file path
+        filePath = path.join(saveDir, filename);
+      }
+      
+      // Save the image
+      const buffer = Buffer.from(base64Data, 'base64');
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
+      fs.writeFileSync(filePath, buffer);
+      
+      logger.info('Image saved to file', {
+        path: filePath,
+        size: buffer.length,
+        mimeType
+      });
+      
+      return filePath;
+    } catch (error) {
+      logger.error('Failed to save image to file', { error });
+      return null;
+    }
+  }
+
+  protected async saveAudioToFile(
+    base64Data: string,
+    mimeType: string,
+    model: ModelConfig,
+    saveLocationOverride?: string
+  ): Promise<string | null> {
+    try {
+      // Determine file extension
+      const extension = mimeType.includes('mpeg') ? 'mp3' : 
+                       mimeType.includes('wav') ? 'wav' : 
+                       mimeType.includes('ogg') ? 'ogg' : 'mp3';
+      
+      // Generate simple filename
+      const timestamp = Date.now();
+      const modelName = model.id;
+      const filename = `${modelName}-${timestamp}.${extension}`;
+      
+      // Use override location if provided, otherwise use config, otherwise temp
+      const saveDir = saveLocationOverride || config.fileOutput.saveLocation || os.tmpdir();
+      
+      // Ensure directory exists
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
+      fs.mkdirSync(saveDir, { recursive: true });
+      
+      // Full file path
+      const filePath = path.join(saveDir, filename);
+      
+      // Save the audio
+      const buffer = Buffer.from(base64Data, 'base64');
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
+      fs.writeFileSync(filePath, buffer);
+      
+      logger.info('Audio saved to file', {
+        path: filePath,
+        size: buffer.length,
+        mimeType
+      });
+      
+      return filePath;
+    } catch (error) {
+      logger.error('Failed to save audio to file', { error });
+      return null;
+    }
+  }
+
+  protected async saveVideoToFile(
+    base64Data: string,
+    mimeType: string,
+    model: ModelConfig,
+    saveLocationOverride?: string
+  ): Promise<string | null> {
+    try {
+      // Determine file extension
+      const extension = mimeType.includes('mp4') ? 'mp4' : 
+                       mimeType.includes('webm') ? 'webm' : 
+                       mimeType.includes('avi') ? 'avi' : 
+                       mimeType.includes('mov') ? 'mov' : 'mp4';
+      
+      // Generate simple filename
+      const timestamp = Date.now();
+      const modelName = model.id;
+      const filename = `${modelName}-${timestamp}.${extension}`;
+      
+      // Use override location if provided, otherwise use config, otherwise temp
+      const saveDir = saveLocationOverride || config.fileOutput.saveLocation || os.tmpdir();
+      
+      // Ensure directory exists
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
+      fs.mkdirSync(saveDir, { recursive: true });
+      
+      // Full file path
+      const filePath = path.join(saveDir, filename);
+      
+      // Save the video
+      const buffer = Buffer.from(base64Data, 'base64');
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
+      fs.writeFileSync(filePath, buffer);
+      
+      logger.info('Video saved to file', {
+        path: filePath,
+        size: buffer.length,
+        mimeType
+      });
+      
+      return filePath;
+    } catch (error) {
+      logger.error('Failed to save video to file', { error });
+      return null;
+    }
   }
 }

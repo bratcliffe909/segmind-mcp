@@ -1,6 +1,6 @@
 {
   "name": "@bratcliffe909/mcp-server-segmind",
-  "version": "1.0.23",
+  "version": "1.1.17",
   "description": "Model Context Protocol server for Segmind API - Generate images and videos using AI models",
   "type": "module",
   "main": "dist/server.js",
@@ -68,6 +68,8 @@
   },
   "files": [
     "dist",
+    "scripts",
+    "docs",
     "README.md",
     "LICENSE"
   ],

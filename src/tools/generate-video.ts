@@ -17,6 +17,7 @@ const GenerateVideoSchema = z.object({
   quality: z.enum(['standard', 'high', 'ultra']).default('high').describe('Video quality preset'),
   motion_strength: z.number().min(0).max(1).optional().describe('Motion intensity for image-to-video'),
   seed: z.number().int().optional().describe('Seed for reproducible generation'),
+  save_location: z.string().optional().describe('Directory path to save the video. Overrides default save location.'),
 });
 
 type GenerateVideoParams = z.infer<typeof GenerateVideoSchema>;
@@ -66,9 +67,21 @@ export class GenerateVideoTool extends BaseTool {
       // Prepare model-specific parameters
       const modelParams = await this.prepareModelParameters(validated, model);
 
+      // Log the parameters being sent
+      logger.info('Video generation parameters', {
+        model: model.id,
+        originalParams: validated,
+        preparedParams: modelParams,
+      });
+
       // Validate model parameters
       const paramValidation = modelRegistry.validateModelParameters(model.id, modelParams);
       if (!paramValidation.success) {
+        logger.error('Parameter validation failed', {
+          model: model.id,
+          params: modelParams,
+          error: paramValidation.error,
+        });
         return {
           content: [{
             type: 'text',
@@ -85,30 +98,11 @@ export class GenerateVideoTool extends BaseTool {
         estimatedTime: model.estimatedTime,
       });
 
-      // Execute video generation (handle long-running operation)
-      const result = await this.handleLongRunningOperation(model, paramValidation.data);
+      // Execute video generation
+      const result = await this.callModel(model, paramValidation.data, validated.save_location);
       
-      // Format response
-      const content: TextContent[] = [];
-      
-      // Add main result
-      if (result.content[0]) {
-        content.push(result.content[0] as TextContent);
-      }
-
-      // Add generation details
-      content.push({
-        type: 'text',
-        text: `\nVideo generated successfully:
-- Model: ${model.name}
-- Duration: ${validated.duration}s at ${validated.fps}fps
-- Aspect Ratio: ${validated.aspect_ratio}
-- Quality: ${validated.quality}
-- Processing Time: ${(result.processingTime / 1000).toFixed(1)}s
-- Credits Used: ${result.creditsUsed}`,
-      } as TextContent);
-
-      return { content };
+      // Return the result directly - the base class handles formatting
+      return { content: result.content };
 
     } catch (error) {
       logger.error('Video generation failed', { error });
@@ -120,21 +114,23 @@ export class GenerateVideoTool extends BaseTool {
     // If model is specified, use it
     if (params.model) {
       const model = modelRegistry.getModel(params.model);
-      if (model && model.category === ModelCategory.VIDEO_GENERATION) {
+      if (model && model.category === ModelCategory.TEXT_TO_VIDEO) {
         return model;
       }
       logger.warn(`Model ${params.model} not found or not a video generation model`);
     }
 
     // Get video models
-    const videoModels = modelRegistry.getModelsByCategory(ModelCategory.VIDEO_GENERATION);
+    const videoModels = modelRegistry.getModelsByCategory(ModelCategory.TEXT_TO_VIDEO);
     
     if (isImageToVideo) {
-      // Prefer Kling AI for image-to-video
-      return videoModels.find(m => m.id === 'kling-video') || videoModels[0];
+      // We don't have image-to-video models yet, return first available
+      return videoModels[0];
     } else {
-      // Prefer Veo 2 for text-to-video
-      return videoModels.find(m => m.id === 'veo-2') || videoModels[0];
+      // DEFAULT: Always use the cheapest model (seedance-v1-lite at 0.45 credits)
+      // veo-3 costs 2.0 credits (4x more expensive!)
+      // Only use veo-3 if user explicitly asks for it
+      return videoModels.find(m => m.id === 'seedance-v1-lite') || videoModels[0];
     }
   }
 
@@ -144,48 +140,75 @@ export class GenerateVideoTool extends BaseTool {
   ): Promise<any> {
     const baseParams: any = {};
 
-    // Handle different model types
-    if (model.id === 'kling-video') {
-      // Kling AI is image-to-video
-      if (!params.image) {
-        throw new Error('Kling AI requires an input image for video generation');
-      }
-      
-      baseParams.image = await this.processImageInput(params.image);
-      baseParams.motion_prompt = params.prompt;
-      baseParams.duration = params.duration;
-      baseParams.fps = params.fps;
-      
-      if (params.motion_strength !== undefined) {
-        baseParams.motion_strength = params.motion_strength;
-      }
-    } else if (model.id === 'veo-2') {
-      // Veo 2 is text-to-video
+    // Handle different model types based on actual models we have
+    if (model.id === 'veo-3') {
+      // Veo 3 accepts prompt, seed, generate_audio, and aspect_ratio
       baseParams.prompt = params.prompt;
-      baseParams.duration = params.duration;
-      baseParams.fps = params.fps;
-      baseParams.aspect_ratio = params.aspect_ratio;
-      baseParams.quality = params.quality;
+      
+      if (params.seed !== undefined) {
+        baseParams.seed = params.seed;
+      }
+      
+      // Veo 3 supports aspect ratio
+      if (params.aspect_ratio) {
+        baseParams.aspect_ratio = params.aspect_ratio;
+      }
+      
+      // Note: Veo 3 does NOT support duration control
+      // It generates videos of a fixed length
+    } else if (model.id === 'seedance-v1-lite') {
+      // Seedance V1 Lite accepts more parameters
+      baseParams.prompt = params.prompt;
+      
+      // Map duration (within model's 5-10 second range)
+      if (params.duration !== undefined) {
+        baseParams.duration = Math.min(Math.max(params.duration, 5), 10);
+      }
+      
+      // Map aspect_ratio if it's one of the supported values
+      const supportedAspectRatios = ['16:9', '4:3', '1:1', '3:4', '9:16'];
+      if (params.aspect_ratio && supportedAspectRatios.includes(params.aspect_ratio)) {
+        baseParams.aspect_ratio = params.aspect_ratio;
+      }
+      
+      // Map quality to resolution (seedance uses resolution, not quality)
+      if (model.parameters.shape.resolution) {
+        if (params.quality === 'standard') {
+          baseParams.resolution = '480p';
+        } else {
+          baseParams.resolution = '720p';
+        }
+      }
+      
+      if (params.seed !== undefined && model.parameters.shape.seed) {
+        baseParams.seed = params.seed;
+      }
     } else {
-      // Generic video model
+      // Generic fallback - only pass parameters that exist in the model schema
       baseParams.prompt = params.prompt;
       
       if (params.image && model.parameters.shape.image) {
         baseParams.image = await this.processImageInput(params.image);
       }
       
-      if (model.parameters.shape.duration) {
+      // Only add parameters that are actually defined in the model's schema
+      const modelShape = model.parameters.shape;
+      
+      if (params.duration !== undefined && modelShape.duration) {
         baseParams.duration = params.duration;
       }
       
-      if (model.parameters.shape.fps) {
+      if (params.fps !== undefined && modelShape.fps) {
         baseParams.fps = params.fps;
       }
-    }
-
-    // Add seed if provided and supported
-    if (params.seed !== undefined && model.parameters.shape.seed) {
-      baseParams.seed = params.seed;
+      
+      if (params.aspect_ratio !== undefined && modelShape.aspect_ratio) {
+        baseParams.aspect_ratio = params.aspect_ratio;
+      }
+      
+      if (params.seed !== undefined && modelShape.seed) {
+        baseParams.seed = params.seed;
+      }
     }
 
     // Merge with model defaults

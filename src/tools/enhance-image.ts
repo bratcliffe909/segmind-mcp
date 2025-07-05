@@ -1,8 +1,11 @@
+import * as fs from 'fs/promises';
+import * as path from 'path';
+
 import { CallToolResult, TextContent, ImageContent } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 
-
 import { modelRegistry, ModelCategory } from '../models/registry.js';
+import { imageCache } from '../utils/image-cache.js';
 import { logger } from '../utils/logger.js';
 
 import { BaseTool } from './base.js';
@@ -17,7 +20,7 @@ const EnhanceImageSchema = z.object({
   alpha_matting: z.boolean().default(true).describe('Use alpha matting for cleaner edges'),
   denoise_strength: z.number().min(0).max(1).default(0.5).describe('Denoising strength'),
   batch_size: z.number().int().min(1).max(10).default(1).describe('Number of images to process'),
-  display_mode: z.enum(['display', 'save', 'both']).default('display').describe('How to return the image: display (show image), save (return base64 for saving), both (show image and provide base64)'),
+  save_location: z.string().optional().describe('Directory path to save the image. Overrides default save location.'),
 });
 
 type EnhanceImageParams = z.infer<typeof EnhanceImageSchema>;
@@ -57,6 +60,15 @@ export class EnhanceImageTool extends BaseTool {
 
       logger.info(`Selected model ${model.id} for ${validated.operation} operation`);
 
+      // Determine save location
+      let saveLocation = validated.save_location;
+      
+      // If no save location specified but input was a file path, save to the same file
+      if (!saveLocation && imageValidation.originalFilePath) {
+        saveLocation = imageValidation.originalFilePath;
+        logger.info(`Saving enhanced image back to original location: ${saveLocation}`);
+      }
+
       // Process batch if needed
       const results: Array<TextContent | ImageContent> = [];
       
@@ -81,7 +93,7 @@ export class EnhanceImageTool extends BaseTool {
         }
 
         // Execute enhancement
-        const result = await this.callModel(model, paramValidation.data, validated.display_mode);
+        const result = await this.callModel(model, paramValidation.data, saveLocation);
         results.push(...result.content);
       }
 
@@ -173,19 +185,99 @@ export class EnhanceImageTool extends BaseTool {
         break;
     }
     
-    // Ensure base64 is true for proper MCP handling
+    // Set base64 to false to get binary response
+    // Our API client will handle the conversion to base64
     if (model.parameters.shape.base64 !== undefined) {
-      baseParams.base64 = true;
+      baseParams.base64 = false;
     }
 
     // Merge with model defaults
     return this.mergeWithDefaults(baseParams, model);
   }
 
-  private async validateImageInput(input: string): Promise<{ isValid: boolean; error?: string }> {
+  private async validateImageInput(input: string): Promise<{ isValid: boolean; error?: string; format?: string; cacheId?: string; originalFilePath?: string }> {
+    // Check if it's a file path (absolute path on any OS)
+    const isFilePath = (
+      input.match(/^[A-Za-z]:\\/) || // Windows path like C:\
+      input.startsWith('/') ||        // Unix absolute path
+      input.startsWith('~/')           // Home directory path
+    );
+    
+    if (isFilePath) {
+      try {
+        // Expand home directory if needed
+        let filePath = input;
+        if (input.startsWith('~/')) {
+          filePath = input.replace('~', process.env.HOME || process.env.USERPROFILE || '');
+        }
+        
+        // Make sure it's absolute
+        if (!path.isAbsolute(filePath)) {
+          return {
+            isValid: false,
+            error: 'File path must be absolute',
+          };
+        }
+        
+        // Check if file exists
+        await fs.access(filePath);
+        
+        // Read and convert to base64
+        // eslint-disable-next-line security/detect-non-literal-fs-filename
+        const imageBuffer = await fs.readFile(filePath);
+        const base64String = imageBuffer.toString('base64');
+        
+        // Get mime type from extension
+        const ext = path.extname(filePath).toLowerCase();
+        const mimeTypes: Record<string, string> = {
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.png': 'image/png',
+          '.gif': 'image/gif',
+          '.webp': 'image/webp',
+          '.bmp': 'image/bmp',
+        };
+        
+        const mimeType = mimeTypes[ext] || 'image/png';
+        
+        // Store in cache to avoid passing large strings
+        const cacheId = imageCache.store(base64String, mimeType, filePath);
+        
+        logger.info(`Automatically converted file path to cache ID: ${cacheId}`);
+        
+        return {
+          isValid: true,
+          format: 'cached',
+          cacheId,
+          originalFilePath: filePath,
+        };
+      } catch (error) {
+        return {
+          isValid: false,
+          error: `Failed to read file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        };
+      }
+    }
+    
+    // Check if it's an image cache ID
+    if (input.startsWith('img_')) {
+      const cachedImage = imageCache.get(input);
+      if (cachedImage) {
+        return {
+          isValid: true,
+          format: 'cached',
+          cacheId: input,
+        };
+      }
+      return {
+        isValid: false,
+        error: `Image cache ID ${input} not found or expired. Please use prepare_image again.`,
+      };
+    }
+
     // Check if it's a URL
     if (input.startsWith('http://') || input.startsWith('https://')) {
-      return { isValid: true };
+      return { isValid: true, format: 'url' };
     }
 
     // Check if it's base64
@@ -204,7 +296,7 @@ export class EnhanceImageTool extends BaseTool {
           };
         }
         
-        return { isValid: true };
+        return { isValid: true, format: 'base64' };
       } catch {
         return {
           isValid: false,
@@ -215,7 +307,7 @@ export class EnhanceImageTool extends BaseTool {
 
     return {
       isValid: false,
-      error: 'Image must be a valid URL or base64 encoded string',
+      error: 'Image must be a valid URL, base64 encoded string, or image cache ID from prepare_image',
     };
   }
 
@@ -228,14 +320,30 @@ export class EnhanceImageTool extends BaseTool {
     }
   }
 
-  private async processImageInput(input: string, _validation: any): Promise<string> {
-    // If it's already a URL or data URI, return as-is
-    if (input.startsWith('http') || input.startsWith('data:image/')) {
+  private async processImageInput(input: string, validation: any): Promise<string> {
+    // If it's a cached image, retrieve it
+    if (validation.format === 'cached' && validation.cacheId) {
+      const cachedImage = imageCache.get(validation.cacheId);
+      if (cachedImage) {
+        // Return plain base64 without data URI prefix for Segmind API
+        return cachedImage.base64;
+      }
+      throw new Error(`Image cache ID ${validation.cacheId} not found`);
+    }
+
+    // If it's already a URL, return as-is
+    if (input.startsWith('http')) {
       return input;
     }
 
-    // If it's plain base64, add data URI prefix
-    return `data:image/png;base64,${input}`;
+    // If it's base64 with data URI, strip the prefix for Segmind API
+    if (input.startsWith('data:image/')) {
+      const base64Part = input.split(',')[1];
+      return base64Part || input;
+    }
+
+    // If it's already plain base64, return as-is
+    return input;
   }
 
   private generateSummary(params: EnhanceImageParams, model: any): string {
@@ -252,8 +360,7 @@ export class EnhanceImageTool extends BaseTool {
     return `\nEnhancement complete:
 - Operation: ${operationText}
 - Model: ${model.name}
-- Batch Size: ${params.batch_size}${params.batch_size > 1 ? ' images' : ' image'}
-- Display Mode: ${params.display_mode}`;
+- Batch Size: ${params.batch_size}${params.batch_size > 1 ? ' images' : ' image'}`;
   }
 }
 

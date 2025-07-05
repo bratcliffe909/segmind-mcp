@@ -28,11 +28,12 @@ describe('MCP Server Integration', () => {
       'generate_image',
       'transform_image', 
       'generate_video',
-      'enhance_image',
-      'specialized_generation'
+      'generate_audio',
+      'generate_music',
+      'enhance_image'
     ];
     
-    expect(expectedTools.length).toBe(5);
+    expect(expectedTools.length).toBe(6);
   });
   
   it('should handle generate_image requests', async () => {

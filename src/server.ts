@@ -15,9 +15,12 @@ import {
   generateImageTool,
   transformImageTool,
   generateVideoTool,
+  generateAudioTool,
+  generateMusicTool,
   enhanceImageTool,
-  specializedGenerationTool,
-  estimateCostTool
+  estimateCostTool,
+  readLocalImageTool,
+  prepareImageTool
 } from './tools/index.js';
 import type { ServerState } from './types/index.js';
 import { mapToSafeError, formatErrorResponse } from './utils/errors.js';
@@ -212,13 +215,13 @@ export class SegmindMCPServer {
           },
           {
             name: 'transform_image',
-            description: 'Transform existing images using AI with various control methods',
+            description: 'Transform existing images using AI with various control methods. Accepts file paths directly (e.g. C:\\photo.jpg), URLs, or base64. File paths are automatically processed without displaying the base64 string.',
             inputSchema: {
               type: 'object',
               properties: {
                 image: {
                   type: 'string',
-                  description: 'Input image as base64 string or URL',
+                  description: 'Input image as: file path (e.g. C:\\photo.jpg or /home/user/image.png), URL, base64 string, or image cache ID. File paths are automatically handled without displaying base64.',
                 },
                 prompt: {
                   type: 'string',
@@ -280,7 +283,7 @@ export class SegmindMCPServer {
                 model: {
                   type: 'string',
                   description: 'Model ID to use for video generation',
-                  enum: modelRegistry.getModelsByCategory(ModelCategory.VIDEO_GENERATION).map(m => m.id),
+                  enum: modelRegistry.getModelsByCategory(ModelCategory.TEXT_TO_VIDEO).map(m => m.id),
                 },
                 image: {
                   type: 'string',
@@ -316,19 +319,23 @@ export class SegmindMCPServer {
                   type: 'number',
                   description: 'Seed for reproducible generation',
                 },
+                save_location: {
+                  type: 'string',
+                  description: 'Directory path to save the video. Overrides default save location.',
+                },
               },
               required: ['prompt'],
             },
           },
           {
             name: 'enhance_image',
-            description: 'Enhance images with upscaling, restoration, background removal, and more',
+            description: 'Enhance images with upscaling, restoration, background removal, and more. Accepts file paths directly (e.g. C:\\photo.jpg), URLs, or base64. File paths are automatically processed without displaying the base64 string.',
             inputSchema: {
               type: 'object',
               properties: {
                 image: {
                   type: 'string',
-                  description: 'Input image as base64 string or URL',
+                  description: 'Input image as: file path (e.g. C:\\photo.jpg or /home/user/image.png), URL, base64 string, or image cache ID. File paths are automatically handled without displaying base64.',
                 },
                 operation: {
                   type: 'string',
@@ -374,52 +381,116 @@ export class SegmindMCPServer {
             },
           },
           {
-            name: 'specialized_generation',
-            description: 'Generate specialized content like QR codes, stickers, avatars, outfits, and logos',
+            name: 'generate_audio',
+            description: 'Generate speech audio from text using TTS models',
             inputSchema: {
               type: 'object',
               properties: {
-                type: {
+                text: {
                   type: 'string',
-                  description: 'Type of specialized content to generate',
-                  enum: ['qr_code', 'sticker', 'avatar', 'outfit', 'logo'],
+                  description: 'Text to convert to speech',
                 },
                 model: {
                   type: 'string',
-                  description: 'Specific model to use',
-                  enum: modelRegistry.getModelsByCategory(ModelCategory.SPECIALIZED_GENERATION).map(m => m.id),
+                  description: 'TTS model to use (dia-tts or orpheus-tts)',
+                  enum: modelRegistry.getModelsByCategory(ModelCategory.TEXT_TO_AUDIO).map(m => m.id),
                 },
-                qr_text: {
+                voice: {
                   type: 'string',
-                  description: 'Text/URL to encode in QR code (for qr_code type)',
+                  description: 'Voice selection for TTS (orpheus: tara, dan, josh, emma)',
                 },
-                qr_prompt: {
+                temperature: {
+                  type: 'number',
+                  description: 'Controls randomness/expressiveness (0.1-2.0)',
+                  minimum: 0.1,
+                  maximum: 2.0,
+                },
+                top_p: {
+                  type: 'number',
+                  description: 'Controls word variety (0.1-1.0, higher = rarer words)',
+                  minimum: 0.1,
+                  maximum: 1.0,
+                },
+                max_new_tokens: {
+                  type: 'number',
+                  description: 'Maximum tokens (controls audio length - higher = longer audio)',
+                  minimum: 100,
+                  maximum: 10000,
+                },
+                speed_factor: {
+                  type: 'number',
+                  description: 'Playback speed (0.5-1.5). Default 0.94 = normal speech. Try 0.8 for slower, 1.1 for faster',
+                  minimum: 0.5,
+                  maximum: 1.5,
+                },
+                cfg_scale: {
+                  type: 'number',
+                  description: 'How strictly to follow text (1-5, dia only)',
+                  minimum: 1,
+                  maximum: 5,
+                },
+                cfg_filter_top_k: {
+                  type: 'number',
+                  description: 'Token filtering (10-100, dia only)',
+                  minimum: 10,
+                  maximum: 100,
+                },
+                input_audio: {
                   type: 'string',
-                  description: 'Artistic style prompt for QR code',
+                  description: 'Base64 audio for voice cloning (dia only)',
                 },
-                sticker_image: {
+                repetition_penalty: {
+                  type: 'number',
+                  description: 'Penalty for repeated phrases (1.0-2.0, orpheus only)',
+                  minimum: 1.0,
+                  maximum: 2.0,
+                },
+                seed: {
+                  type: 'number',
+                  description: 'Seed for reproducible generation',
+                },
+                display_mode: {
                   type: 'string',
-                  description: 'Input image for sticker generation (base64 or URL)',
+                  description: 'How to return the audio: display (show audio), save (return base64 for saving), both (show audio and provide base64)',
+                  enum: ['display', 'save', 'both'],
+                  default: 'display',
                 },
-                sticker_style: {
+                save_location: {
                   type: 'string',
-                  description: 'Sticker art style',
-                  enum: ['cartoon', 'anime', 'pixel', 'sketch'],
-                  default: 'cartoon',
+                  description: 'Directory path to save the audio. Overrides default save location.',
                 },
-                logo_text: {
-                  type: 'string',
-                  description: 'Company/brand name for logo',
-                },
-                logo_style: {
-                  type: 'string',
-                  description: 'Logo design style',
-                  enum: ['modern', 'vintage', 'minimalist', 'abstract'],
-                  default: 'modern',
-                },
+              },
+              required: ['text'],
+            },
+          },
+          {
+            name: 'generate_music',
+            description: 'Generate music from text descriptions',
+            inputSchema: {
+              type: 'object',
+              properties: {
                 prompt: {
                   type: 'string',
-                  description: 'General description or style instructions',
+                  description: 'Text description of the music to generate',
+                },
+                model: {
+                  type: 'string',
+                  description: 'Music generation model to use',
+                  enum: modelRegistry.getModelsByCategory(ModelCategory.TEXT_TO_MUSIC).map(m => m.id),
+                },
+                duration: {
+                  type: 'number',
+                  description: 'Duration in seconds for the music',
+                  minimum: 1,
+                  maximum: 300,
+                },
+                negative_prompt: {
+                  type: 'string',
+                  description: 'What to avoid in the generation',
+                },
+                seed: {
+                  type: 'number',
+                  description: 'Seed for reproducible generation',
                 },
                 num_outputs: {
                   type: 'number',
@@ -428,18 +499,18 @@ export class SegmindMCPServer {
                   maximum: 4,
                   default: 1,
                 },
-                seed: {
-                  type: 'number',
-                  description: 'Seed for reproducible generation',
-                },
                 display_mode: {
                   type: 'string',
-                  description: 'How to return the image: display (show image), save (return base64 for saving), both (show image and provide base64)',
+                  description: 'How to return the audio: display (show audio), save (return base64 for saving), both (show audio and provide base64)',
                   enum: ['display', 'save', 'both'],
                   default: 'display',
                 },
+                save_location: {
+                  type: 'string',
+                  description: 'Directory path to save the music. Overrides default save location.',
+                },
               },
-              required: ['type'],
+              required: ['prompt'],
             },
           },
           {
@@ -487,6 +558,45 @@ export class SegmindMCPServer {
               properties: {},
             },
           },
+          {
+            name: 'prepare_image',
+            description: 'RECOMMENDED: Prepare a local image file for use with other tools. Returns a short ID instead of the full base64 string, avoiding display slowdowns. Always use this instead of read_local_image for image transformation tasks.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                file_path: {
+                  type: 'string',
+                  description: 'Absolute path to the image file',
+                },
+                max_size_kb: {
+                  type: 'number',
+                  description: 'Maximum size in KB before warning (default: 800KB)',
+                  default: 800,
+                },
+              },
+              required: ['file_path'],
+            },
+          },
+          {
+            name: 'read_local_image',
+            description: 'Read a local image file and convert it to base64. WARNING: Returns the full base64 string which can be very large and slow to display. Use prepare_image instead for better performance.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                file_path: {
+                  type: 'string',
+                  description: 'Absolute path to the image file',
+                },
+                return_format: {
+                  type: 'string',
+                  description: 'Format to return: base64 string or data URI',
+                  enum: ['base64', 'data_uri'],
+                  default: 'base64',
+                },
+              },
+              required: ['file_path'],
+            },
+          },
         ],
       };
     });
@@ -514,8 +624,17 @@ export class SegmindMCPServer {
           case 'enhance_image':
             return await enhanceImageTool.execute(args);
           
-          case 'specialized_generation':
-            return await specializedGenerationTool.execute(args);
+          case 'generate_audio':
+            return await generateAudioTool.execute(args);
+            
+          case 'generate_music':
+            return await generateMusicTool.execute(args);
+          
+          case 'prepare_image':
+            return await prepareImageTool.execute(args);
+          
+          case 'read_local_image':
+            return await readLocalImageTool.execute(args);
             
           case 'list_models': {
             const category = args?.category;

@@ -185,28 +185,66 @@ Improve image quality and resolution.
 - `strength`: 0.0-1.0 (enhancement intensity)
 - `face_enhance`: true/false (for esrgan)
 
-### 🎯 specialized_generation
-Generate specialized content like speech, music, QR codes, and stickers.
+### 🎤 generate_audio
+Generate speech from text using advanced TTS models.
 
-**Text-to-Speech Examples:**
+**Basic Examples:**
 ```
 "Convert this text to speech: Hello world"
-"Create dialogue: [S1] Hello! [S2] Hi there! <laugh>"
-"Generate speech with emotion tags using orpheus-tts"
+"Read this text aloud: Welcome to our presentation"
+"Generate speech: The quick brown fox jumps over the lazy dog"
 ```
 
-**Music Generation Examples:**
+**Advanced Examples:**
 ```
-"Create relaxing piano music for meditation"
-"Generate upbeat electronic music"
-"Make 60 seconds of music with vocals using minimax-music"
+"Create dialogue: [S1] Hello! [S2] Hi there! (laughs)"
+"Generate slow speech with speed_factor 0.8: Important announcement"
+"Use orpheus-tts with voice emma: Hello everyone"
+```
+
+**Controlling Speech Pace:**
+
+For slower, more deliberate speech:
+```
+"Generate speech: Hello everyone. (pauses) Today we'll discuss... (hesitates) something very important."
+"Use speed_factor 0.8: This is an important safety announcement."
+"Add pauses: Please listen carefully — (pauses) — this information could save your life."
 ```
 
 **Available Options:**
-- `type`: tts, music, qr_code, sticker, avatar, outfit, logo
-- `model`: dia-tts, orpheus-tts, lyria-2, minimax-music
-- Speech options: emotions, multiple speakers, speed
-- Music options: duration, style, instrumental or with vocals
+- `model`: dia-tts (multi-speaker, emotions) or orpheus-tts (4 voices)
+- `voice`: tara, dan, josh, emma (orpheus only)
+- `speed_factor`: 0.5-1.5 (dia only, default 0.94=normal, try 0.8 for slower, 1.1 for faster)
+- `temperature`: 0.1-2.0 (expressiveness)
+- `max_new_tokens`: Control audio length
+
+**Pacing Techniques (dia-tts):**
+- Use punctuation: periods (.), commas (,), ellipsis (...) for natural pauses
+- Add non-verbal cues: (pauses), (sighs), (hesitates), (breathes deeply)
+- Combine with speed_factor for overall tempo control
+
+### 🎵 generate_music
+Create original music from text descriptions.
+
+**Basic Examples:**
+```
+"Create relaxing piano music for meditation"
+"Generate upbeat electronic dance music"
+"Make ambient background music"
+```
+
+**Advanced Examples:**
+```
+"Generate 60 seconds of jazz with saxophone using minimax-music"
+"Create instrumental lo-fi hip hop beats for studying"
+"Make epic orchestral music with duration 45 seconds"
+```
+
+**Available Options:**
+- `model`: lyria-2 (instrumental) or minimax-music (with vocals)
+- `duration`: 1-60 seconds (minimax) or default 30s (lyria)
+- `negative_prompt`: What to avoid in the music
+- `seed`: For reproducible music generation
 
 ### 💰 estimate_cost
 Check credit costs before generating content.
@@ -228,7 +266,7 @@ Check credit costs before generating content.
 
 ## Supported Models
 
-The server includes 13 verified working models:
+The server includes 13 verified working models across 7 categories:
 
 ### Text-to-Image Generation (4 models)
 - **sdxl** - Stable Diffusion XL: High-quality image generation with SDXL 1.0
@@ -265,10 +303,52 @@ Set these environment variables in your MCP client config:
     "SEGMIND_API_KEY": "required - your API key",
     "LOG_LEVEL": "info",  // error, warn, info, debug
     "CACHE_ENABLED": "true",
-    "MAX_IMAGE_SIZE": "10485760"  // 10MB
+    "MAX_IMAGE_SIZE": "10485760",  // 10MB
+    "FILE_OUTPUT_LOCATION": "/path/to/save/images"  // Optional, defaults to system temp
   }
 }
 ```
+
+### File Output
+
+Images are automatically saved to your local filesystem (Claude Desktop cannot display images from MCP servers).
+
+- Default location: System temp directory
+- Custom location: Set `FILE_OUTPUT_LOCATION` to any directory
+- Override per request: Use `save_location` parameter in your prompt
+
+Example:
+```
+"Generate an image of a sunset"
+// Result: Image saved to: /tmp/sdxl-1705783456789.png
+
+"Generate a logo and save to /Users/me/Desktop"
+// Result: Image saved to: /Users/me/Desktop/sdxl-1705783456790.png
+```
+
+### Working with Local Images
+
+To use your local images with transform_image or enhance_image tools, you need to convert them to base64 format first.
+
+#### Option 1: Drag & Drop (Easiest)
+Simply drag your image file into the Claude chat window.
+
+#### Option 2: Use the Preparation Script
+```bash
+# Navigate to the package directory
+cd node_modules/@bratcliffe909/mcp-server-segmind
+# Or if installed globally: cd $(npm root -g)/@bratcliffe909/mcp-server-segmind
+
+# Convert your image
+node scripts/prepare-image.js "C:\Users\YourName\Pictures\photo.jpg"
+
+# This creates photo.jpg.base64.txt - copy its contents for use with Claude
+```
+
+#### Option 3: Online Converter
+Use any "image to base64" online converter and copy the result.
+
+See [docs/IMAGE_PREPARATION.md](docs/IMAGE_PREPARATION.md) for detailed instructions.
 
 ## Development
 
@@ -361,6 +441,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 - [Quick Start Guide](docs/QUICKSTART.md) - Getting started quickly
 - [User Guide](docs/USER_GUIDE.md) - Detailed usage and examples
 - [Available Models](docs/MODELS.md) - Complete model reference
+- [Parameter Reference](docs/PARAMETERS.md) - Comprehensive parameter documentation
 - [Contributing Guide](CONTRIBUTING.md) - How to contribute
 
 ## Links

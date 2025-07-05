@@ -226,13 +226,26 @@ export class SegmindApiClient {
         if (!response.ok || responseData.error) {
           logger.error('API error response', {
             status: response.status,
+            statusText: response.statusText,
+            url: response.url,
             error: responseData.error,
             data: responseData,
           });
           
-          const errorMessage = typeof responseData.error === 'string' 
+          let errorMessage = typeof responseData.error === 'string' 
             ? responseData.error 
             : responseData.error?.message || `API request failed with status ${response.status}`;
+            
+          // Add more context for 400 errors
+          if (response.status === 400) {
+            logger.error('Bad Request details', {
+              url: response.url,
+              requestBody: options.body,
+              responseError: responseData.error,
+              responseData,
+            });
+            errorMessage = `Bad Request: ${errorMessage}. Check that all parameters match the model's requirements.`;
+          }
           
           throw new Error(errorMessage);
         }

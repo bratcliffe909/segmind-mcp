@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { apiClient } from '../api/client.js';
 import { modelRegistry } from '../models/registry.js';
+import { costTracker } from '../utils/cost-tracker.js';
 import { logger } from '../utils/logger.js';
 
 import { BaseTool } from './base.js';
@@ -51,9 +52,15 @@ export class EstimateCostTool extends BaseTool {
             text: `\n### ${category}\n`,
           });
 
-          const tableRows = models.map(model => 
-            `| ${model.name} | ${model.id} | ${model.creditsPerUse} | ${model.estimatedTime}s |`
-          );
+          const tableRows = models.map(model => {
+            // Get actual cost from tracker or use hardcoded estimate
+            const trackedCost = costTracker.getEstimatedCost(model.id);
+            const costInfo = costTracker.getCostInfo(model.id);
+            const displayCost = trackedCost ? trackedCost.toFixed(3) : model.creditsPerUse.toString();
+            const costSource = trackedCost ? ` (avg of ${costInfo?.sampleCount} runs)` : ' (estimate)';
+            
+            return `| ${model.name} | ${model.id} | ${displayCost}${costSource} | ${model.estimatedTime}s |`;
+          });
 
           content.push({
             type: 'text',
@@ -84,8 +91,17 @@ ${tableRows.join('\n')}\n`,
         }
 
         const numOperations = validated.num_images || validated.num_outputs || 1;
-        const totalCredits = model.creditsPerUse * numOperations;
+        
+        // Get actual cost from tracker or use hardcoded estimate
+        const trackedCost = costTracker.getEstimatedCost(model.id);
+        const costInfo = costTracker.getCostInfo(model.id);
+        const creditPerUse = trackedCost || model.creditsPerUse;
+        const totalCredits = creditPerUse * numOperations;
         const totalTime = model.estimatedTime * numOperations;
+        
+        const costSource = trackedCost 
+          ? `Based on ${costInfo?.sampleCount} actual generations (min: ${costInfo?.minCost}, max: ${costInfo?.maxCost}, avg: ${trackedCost.toFixed(3)})`
+          : 'Based on estimated pricing';
 
         content.push({
           type: 'text',
@@ -96,9 +112,10 @@ ${tableRows.join('\n')}\n`,
 **Operation**: ${validated.operation || 'generate'}
 
 ### Cost Breakdown
-- Credits per use: ${model.creditsPerUse}
+- Credits per use: ${creditPerUse.toFixed(3)}
 - Number of operations: ${numOperations}
-- **Total credits needed**: ${totalCredits}
+- **Total credits needed**: ${totalCredits.toFixed(3)}
+- *${costSource}*
 
 ### Time Estimate
 - Time per operation: ${model.estimatedTime}s
@@ -151,12 +168,16 @@ ${!canAfford ? `You need ${Math.abs(remainingAfter)} more credits to complete th
         });
 
         for (const model of models) {
-          const totalCredits = model.creditsPerUse * numOperations;
+          // Get actual cost from tracker or use hardcoded estimate
+          const trackedCost = costTracker.getEstimatedCost(model.id);
+          const creditPerUse = trackedCost || model.creditsPerUse;
+          const totalCredits = creditPerUse * numOperations;
           const totalTime = model.estimatedTime * numOperations;
+          const source = trackedCost ? '*' : '';
           
           content.push({
             type: 'text',
-            text: `| ${model.name} | ${model.creditsPerUse} | ${totalCredits} | ${totalTime}s |`,
+            text: `| ${model.name} | ${creditPerUse.toFixed(3)}${source} | ${totalCredits.toFixed(3)} | ${totalTime}s |`,
           });
         }
 
@@ -168,6 +189,19 @@ ${!canAfford ? `You need ${Math.abs(remainingAfter)} more credits to complete th
         }
       }
 
+      // Add note about actual costs if we have any tracked data
+      const allCosts = costTracker.getAllCosts();
+      if (Object.keys(allCosts).length > 0) {
+        content.push({
+          type: 'text',
+          text: `\n## 📊 Cost Accuracy
+- Costs marked with * are based on actual usage data
+- Unmarked costs are estimates from model configuration
+- Actual costs may vary based on parameters (resolution, quality, etc.)
+- The system learns and improves estimates with each use`,
+        });
+      }
+
       // Add helpful tips
       content.push({
         type: 'text',
@@ -176,7 +210,8 @@ ${!canAfford ? `You need ${Math.abs(remainingAfter)} more credits to complete th
 - Use draft quality or lower resolution to save credits
 - Test with single images before batch generation
 - Some models like SDXL Lightning use fewer credits
-- Enhanced models (upscaling) typically use more credits`,
+- Enhanced models (upscaling) typically use more credits
+- Cost estimates improve as you use the models more`,
       });
 
       return { content };

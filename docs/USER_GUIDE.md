@@ -148,7 +148,15 @@ With options:
 
 ### Transform Image
 
-Basic usage:
+**Important**: Local images must be converted to base64 first!
+
+For local images (two-step process):
+```
+Step 1: "Read my image at C:\Users\YourName\Pictures\photo.jpg"
+Step 2: "Transform that image into a watercolor painting"
+```
+
+Or if your MCP client supports image uploads/drag & drop:
 ```
 "Transform this image into a watercolor painting"
 ```
@@ -161,7 +169,15 @@ With options:
 
 ### Enhance Image
 
-Basic usage:
+**Important**: Local images must be converted to base64 first!
+
+For local images (two-step process):
+```
+Step 1: "Read image: C:\path\to\old-photo.jpg"
+Step 2: "Enhance that photo and upscale it"
+```
+
+Or if your MCP client supports image uploads/drag & drop:
 ```
 "Upscale this image to 4K"
 "Enhance this old photo"
@@ -201,6 +217,29 @@ With dialogue and emotions:
 "Generate dialogue: [S1] Hello! <laugh> [S2] Hi there! How are you?"
 "Create speech with emotions: I'm so excited! <gasp> This is amazing!"
 "Use orpheus-tts with voice dan for natural conversation"
+```
+
+For longer audio (beyond default ~14 seconds):
+```
+"Generate speech with max_new_tokens 2000: [long text here]"
+"Use dia-tts with max_new_tokens 4096 for maximum length narration"
+"Create audiobook chapter with orpheus-tts using max_new_tokens 2000"
+```
+
+For custom speech characteristics:
+```
+"Generate slow narration with speed_factor 0.5 and temperature 0.5"
+"Create expressive dialogue with temperature 1.5 and top_p 0.8"
+"Use orpheus-tts with voice emma and repetition_penalty 1.5"
+"Generate consistent speech with top_p 0.3 and cfg_scale 4"
+```
+
+Advanced TTS examples:
+```
+"Use dia-tts with speed_factor 0.7 for slower, clearer pronunciation"
+"Create dramatic reading with temperature 1.8 and cfg_scale 3"
+"Generate speech with voice cloning using input_audio [base64 audio]"
+"Multi-speaker dialogue: [S1] Hello! [S2] Hi there! with cfg_scale 5"
 ```
 
 ### Generate Music
@@ -266,7 +305,14 @@ With specific requirements:
 
 ### Multi-Speaker Dialogue
 ```
-"Generate conversation: [S1] Welcome to our podcast! <laugh> [S2] Thanks for having me! (excited) [S1] Let's dive right in..."
+"Generate conversation: [S1] Welcome to our podcast! (laughs) [S2] Thanks for having me! [S1] Let's dive right in..."
+```
+
+### Controlling Speech Pace
+```
+"Generate slow deliberate speech: Ladies and gentlemen... (pauses) What I'm about to tell you... (breathes deeply) will change everything."
+"Create dramatic narration with speed_factor 0.7: Once upon a time, in a land far, far away..."
+"Generate quick announcement with speed_factor 1.2: Attention passengers, the train is now departing!"
 ```
 
 ### Background Music
@@ -291,7 +337,71 @@ With specific requirements:
 **Audio**:
 - **For dialogues**: Use `dia-tts` with speaker tags
 - **For natural speech**: Use `orpheus-tts`
+- **For speed control**: Use `dia-tts` (orpheus-tts does NOT support speed_factor)
+- **For voice cloning**: Use `dia-tts` with input_audio
 - **For music**: Use `lyria-2` (instrumental) or `minimax-music` (with vocals)
+
+**Controlling TTS Parameters**:
+
+**Audio Length**:
+- TTS models use token limits to control audio length
+- `orpheus-tts`: Default 1200 tokens (~14 seconds), max 2000 tokens (~23 seconds)
+- `dia-tts`: Default 3072 tokens (~35 seconds), max 4096 tokens (~47 seconds)
+- To generate longer audio, specify `max_new_tokens`: "Generate speech with max_new_tokens 2000"
+
+**Speech Speed and Pacing**:
+
+**Using speed_factor (dia-tts only)**:
+- Control overall playback speed with `speed_factor` (0.5-1.5)
+- Default: 0.94 (normal conversational speed)
+- **Recommended values**:
+  - 0.5-0.7 = Very slow (for emphasis or clarity)
+  - 0.8-0.9 = Slightly slower than normal
+  - 0.94 = Normal speed (default)
+  - 1.0-1.1 = Slightly faster than normal
+  - 1.2-1.5 = Fast speech
+- **Note**: speed_factor may also affect pitch/prosody, not just tempo
+
+**Using Text Markup for Natural Pacing**:
+- **Punctuation**:
+  - Period (.) = Natural sentence pause
+  - Comma (,) = Brief pause
+  - Ellipsis (...) = Longer dramatic pause
+  - Em-dash (—) = Medium pause with emphasis
+- **Non-verbal cues (in parentheses)**:
+  - `(pauses)` = Explicit pause
+  - `(sighs)` = Natural sigh with pause
+  - `(hesitates)` = Natural hesitation
+  - `(breathes deeply)` = Audible breathing
+  - `(thinks)` = Thoughtful pause
+- **Examples**:
+  ```
+  "Generate speech: Hello everyone. (pauses) Today's topic is... (hesitates) quite sensitive."
+  "Create narration: The door creaked open — (pauses) — revealing nothing but darkness..."
+  "Generate with speed_factor 0.8: Please listen carefully to these safety instructions."
+  ```
+
+**Voice Quality Parameters**:
+- `temperature`: Controls expressiveness (0.1-2.0)
+  - 0.1-0.5: Stable, consistent speech
+  - 0.6-1.0: Natural conversational tone
+  - 1.1-2.0: Expressive, dramatic voices
+- `top_p`: Controls word variety (0.1-1.0)
+  - Lower values: More predictable speech
+  - Higher values: More varied vocabulary
+
+**Model-Specific Features**:
+- **Orpheus TTS**: 
+  - Voices: tara, dan (default), josh, emma
+  - `repetition_penalty` (1.0-2.0): Prevents repeated phrases
+  - **Does NOT support**: speed_factor, cfg_scale, cfg_filter_top_k, input_audio
+- **Dia TTS**: 
+  - `speed_factor` (0.5-1.5): Speed control (ONLY available in dia-tts!)
+  - `cfg_scale` (1-5): How strictly to follow text
+  - `cfg_filter_top_k` (10-100): Token diversity
+  - `input_audio`: Voice cloning from audio file
+  - Multi-speaker support with [S1], [S2] tags
+  - **Note**: Dia-tts is automatically selected when using speed_factor
 
 ### 2. Prompt Writing
 
@@ -337,42 +447,53 @@ Use seeds for reproducible results:
 - Generate fewer outputs to save credits
 - Use lower resolution/duration for drafts
 
-### 6. Displaying Images in Claude Desktop
+### 6. File Output (Claude Desktop)
 
-When using the segmind-mcp server with Claude Desktop, images are generated successfully but may not always display inline. Here are your options:
+Since Claude Desktop cannot display images from MCP servers, all generated images are automatically saved to your local filesystem.
 
-**Option 1: Use display_mode parameter**
-Control how image data is returned:
-- `display_mode: "display"` (default) - Returns image for display
-- `display_mode: "save"` - Returns base64 data for saving
-- `display_mode: "both"` - Returns both image and base64 data
-
+**Default Behavior:**
 ```
-"Generate a sunset landscape with display_mode='save'"
-"Create a portrait with display_mode='both' to see and save it"
+"Generate an image of a sunset"
+// Result: Image saved to: /tmp/sdxl-1705783456789.png
 ```
 
-**Option 2: Save and View Images**
-If images don't display inline:
-1. Use `display_mode: "save"` to get the base64 data
-2. The response includes BASE64_IMAGE markers
-3. Copy the base64 data between the markers to save the image
+**Setting a Default Save Location:**
+Add this to your MCP config:
+```json
+{
+  "env": {
+    "FILE_OUTPUT_LOCATION": "/Users/me/Pictures/AI"
+  }
+}
+```
 
-**Option 3: Use File Attachments**
-For immediate viewing in Claude Desktop:
-1. Generate with `display_mode: "save"`
-2. Save the decoded image to a file
-3. Use Claude Desktop's paperclip icon to attach and view
+**Override Save Location Per Request:**
+```
+"Generate a logo and save to /Users/me/Desktop"
+// Result: Image saved to: /Users/me/Desktop/sdxl-1705783456790.png
+
+"Create an avatar, save to ~/Downloads"
+// Result: Image saved to: /home/user/Downloads/sdxl-1705783456791.png
+```
+
+The filename format is simple: `{model}-{timestamp}.{extension}`
 
 ### 7. Cost Estimation
 
-Use the new `estimate_cost` tool to check credit usage before generating:
+Use the `estimate_cost` tool to check credit usage before generating. The system now tracks actual costs from your usage and provides more accurate estimates over time.
 
 ```
 "Estimate the cost of generating 5 images with sdxl"
 "Show me the cost for all text-to-image models"
 "What would it cost to generate a 30-second video?"
+"List all model costs"
 ```
+
+**Dynamic Cost Learning:**
+- Costs marked with * are based on your actual usage history
+- Estimates improve as you use the models more
+- Shows average, min, and max costs when available
+- Falls back to estimates for unused models
 
 ### 8. Common Issues
 
@@ -380,7 +501,7 @@ Use the new `estimate_cost` tool to check credit usage before generating:
 **"Invalid dimensions"**: Use multiples of 8 (256, 512, 768, 1024, etc.)
 **"API key error"**: Verify your API key in the config
 **"Rate limit"**: Wait a moment between requests
-**"Images not displaying"**: Use display_mode options or file attachments
+**"Can't find saved files"**: Check the output message for the exact file path
 
 ## Advanced Usage
 

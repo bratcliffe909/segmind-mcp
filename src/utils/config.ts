@@ -35,6 +35,11 @@ const ConfigSchema = z.object({
     maxConcurrentRequests: z.number().min(1).default(10),
   }),
   
+  // File Output Settings
+  fileOutput: z.object({
+    saveLocation: z.string().optional(), // If not set, uses system temp directory
+  }),
+  
   // Security Settings
   security: z.object({
     validateInputs: z.boolean().default(true),
@@ -91,6 +96,11 @@ class ConfigurationLoader {
           validateInputs: process.env.VALIDATE_INPUTS !== 'false',
           sanitizeLogs: process.env.SANITIZE_LOGS !== 'false',
           allowedImageFormats: process.env.ALLOWED_IMAGE_FORMATS?.split(','),
+        },
+        
+        // File Output Settings
+        fileOutput: {
+          saveLocation: process.env.FILE_OUTPUT_LOCATION,
         },
       };
       
